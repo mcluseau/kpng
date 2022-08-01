@@ -46,6 +46,7 @@ func (j *Job) Run(ctx context.Context) error {
 		Sets: []localnetv1.Set{
 			localnetv1.Set_ServicesSet,
 			localnetv1.Set_EndpointsSet,
+			localnetv1.Set_EndpointsSet, // 2nd endpoints set for anonymous ones
 		},
 		Sink: run,
 	}
@@ -77,6 +78,7 @@ func (s *jobRun) Update(tx *proxystore.Tx, w *watchstate.WatchState) {
 
 	svcs := w.StoreFor(localnetv1.Set_ServicesSet)
 	seps := w.StoreFor(localnetv1.Set_EndpointsSet)
+	sepsAnonymous := w.StoreForN(localnetv1.Set_EndpointsSet, 1)
 
 	// set all new values
 	tx.Each(proxystore.Services, func(kv *proxystore.KV) bool {
@@ -94,16 +96,28 @@ func (s *jobRun) Update(tx *proxystore.Tx, w *watchstate.WatchState) {
 			// hash only the endpoint
 			hash := serde.Hash(ei.Endpoint)
 
-			// key is service key + endpoint hash (64 bits, in hex)
-			key := append(make([]byte, 0, len(key)+1+64/8*2), key...)
-			key = append(key, '/')
-			key = strconv.AppendUint(key, hash, 16)
+			var epKey []byte
+			set := seps
 
-			if trace.IsEnabled() {
-				trace.Log(ctx, "endpoint", string(key))
+			if ei.PodName == "" {
+				set = sepsAnonymous
+				// key is service key + endpoint hash (64 bits, in hex)
+				epKey = append(make([]byte, 0, len(key)+1+64/8*2), key...)
+				epKey = append(epKey, '/')
+				epKey = strconv.AppendUint(epKey, hash, 16)
+			} else {
+				set = seps
+				// key is service key + podName
+				epKey = append(make([]byte, 0, len(key)+1+len(ei.PodName)), key...)
+				epKey = append(epKey, '/')
+				epKey = append(epKey, []byte(ei.PodName)...)
 			}
 
-			seps.Set(key, hash, ei.Endpoint)
+			if trace.IsEnabled() {
+				trace.Log(ctx, "endpoint", string(epKey))
+			}
+
+			set.Set(epKey, hash, ei.Endpoint)
 		}
 
 		return true
@@ -116,8 +130,10 @@ func (_ *jobRun) SendDiff(w *watchstate.WatchState) (updated bool) {
 
 	count := 0
 	count += w.SendUpdates(localnetv1.Set_ServicesSet)
+	count += w.SendDeletesN(localnetv1.Set_EndpointsSet, 1)
 	count += w.SendUpdates(localnetv1.Set_EndpointsSet)
 	count += w.SendDeletes(localnetv1.Set_EndpointsSet)
+	count += w.SendUpdatesN(localnetv1.Set_EndpointsSet, 1)
 	count += w.SendDeletes(localnetv1.Set_ServicesSet)
 
 	w.Reset(lightdiffstore.ItemDeleted)
