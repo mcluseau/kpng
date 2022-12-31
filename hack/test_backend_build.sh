@@ -42,6 +42,7 @@ function build_all_backends {
 case $package in
   "iptables")     build_package backends/iptables ;;
   "ipvs")         build_package backends/ipvs-as-sink ;;
+  "ipvsfullstate")build_package backends/ipvsfullstate ;;
   "nft")          build_package backends/nft ;;
   "ebpf")         build_package backends/ebpf ;;
   "userspacelin") build_package backends/userspacelin;;
