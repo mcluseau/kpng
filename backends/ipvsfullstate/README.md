@@ -74,12 +74,18 @@ This implementation can be broken down into three major steps.
         Delete
   )
   ```
-  The following  structures are used to organize a ```client.ServiceEndpoints``` diffs into patches
+  The following structures are used to organize a ```client.ServiceEndpoints``` diffs into patches
   - ServicePatch
   ```go
   type ServicePatch struct {
         serviceInfo *ServiceInfo    
         op          Operation
+  }
+  ```
+  
+  ```go
+  func (p *ServicePatch) apply(handler map[Operation]func(serviceInfo *ServiceInfo)) {
+        handler[p.op](p.serviceInfo)
   }
   ```
   - EndpointPatch
@@ -90,9 +96,21 @@ This implementation can be broken down into three major steps.
         op           Operation
   }
   ```
+  ```go
+  func (p *EndpointPatch) apply(handler map[Operation]func(endpointInfo *EndpointInfo, serviceInfo *ServiceInfo)) {
+        handler[p.op](p.endpointInfo, p.serviceInfo)
+  }
+  ```
   - EndpointPatches
   ```go
   type EndpointPatches []EndpointPatch
+  ```
+  ```go
+  func (e EndpointPatches) apply(handler map[Operation]func(*EndpointInfo, *ServiceInfo)) {
+	    for _, patch := range e {
+		     patch.apply(handler)
+        }
+  }
   ```
   - PatchGroup
   ```go
