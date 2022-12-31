@@ -22,9 +22,9 @@ This implementation can be broken down into three major steps.
   
       ipFamily v1.IPFamily
       
-      // service store for storing ServiceInfo object to diffstore
+      // service store for storing ServicePortInfo object to diffstore
       svcStore *lightdiffstore.DiffStore
-      // endpoint store for storing (ServiceInfo + EndpointInfo) object to diffstore
+      // endpoint store for storing EndpointInfo object to diffstore
       epStore *lightdiffstore.DiffStore
   
       iptables util.IPTableInterface
@@ -50,14 +50,14 @@ This implementation can be broken down into three major steps.
 ## 2. Callback, Prepare diffs [ What to do? ]
 - **types.go**
 
-  ```ServiceInfo``` Ccontains base information of a service in a structure that can be directly consumed by the proxier
+  ```ServicePortInfo``` Contains base information of a service in a structure that can be directly consumed by the proxier
   
   ```EndpointInfo``` Contains base information of an endpoint in a structure that can be directly consumed by the proxier
 
   ```ResourceInfo``` Is used by generic functions 
   ```go
   type ResourceInfo interface {
-      ServiceInfo | EndpointInfo
+      ServicePortInfo | EndpointInfo
   }
   ```
 
@@ -78,27 +78,27 @@ This implementation can be broken down into three major steps.
   - ServicePatch
   ```go
   type ServicePatch struct {
-        serviceInfo *ServiceInfo    
+        servicePortInfo *ServicePortInfo    
         op          Operation
   }
   ```
   
   ```go
-  func (p *ServicePatch) apply(handler map[Operation]func(serviceInfo *ServiceInfo)) {
-        handler[p.op](p.serviceInfo)
+  func (p *ServicePatch) apply(handler map[Operation]func(servicePortInfo *ServicePortInfo)) {
+        handler[p.op](p.servicePortInfo)
   }
   ```
   - EndpointPatch
   ```go
   type EndpointPatch struct {
         endpointInfo *EndpointInfo
-        serviceInfo  *ServiceInfo
+        servicePortInfo  *ServicePortInfo
         op           Operation
   }
   ```
   ```go
-  func (p *EndpointPatch) apply(handler map[Operation]func(endpointInfo *EndpointInfo, serviceInfo *ServiceInfo)) {
-        handler[p.op](p.endpointInfo, p.serviceInfo)
+  func (p *EndpointPatch) apply(handler map[Operation]func(endpointInfo *EndpointInfo, servicePortInfo *ServicePortInfo)) {
+        handler[p.op](p.endpointInfo, p.servicePortInfo)
   }
   ```
   - EndpointPatches
@@ -106,7 +106,7 @@ This implementation can be broken down into three major steps.
   type EndpointPatches []EndpointPatch
   ```
   ```go
-  func (e EndpointPatches) apply(handler map[Operation]func(*EndpointInfo, *ServiceInfo)) {
+  func (e EndpointPatches) apply(handler map[Operation]func(*EndpointInfo, *ServicePortInfo)) {
 	    for _, patch := range e {
 		     patch.apply(handler)
         }
@@ -131,17 +131,17 @@ PatchGroups basically couples **all mutually dependent patches together**. Thus 
   handlers directly interact with the proxier to implement the network patches
 ```go
 type Handler interface {
-	createService(*ServiceInfo)
-	createEndpoint(*EndpointInfo, *ServiceInfo)
+	createService(*ServicePortInfo)
+	createEndpoint(*EndpointInfo, *ServicePortInfo)
 
-	updateService(*ServiceInfo)
-	updateEndpoint(*EndpointInfo, *ServiceInfo)
+	updateService(*ServicePortInfo)
+	updateEndpoint(*EndpointInfo, *ServicePortInfo)
 
-	deleteService(*ServiceInfo)
-	deleteEndpoint(*EndpointInfo, *ServiceInfo)
+	deleteService(*ServicePortInfo)
+	deleteEndpoint(*EndpointInfo, *ServicePortInfo)
 
-	getServiceHandlers() map[Operation]func(*ServiceInfo)
-	getEndpointHandlers() map[Operation]func(*EndpointInfo, *ServiceInfo)
+	getServiceHandlers() map[Operation]func(*ServicePortInfo)
+	getEndpointHandlers() map[Operation]func(*EndpointInfo, *ServicePortInfo)
 }
 ```
 

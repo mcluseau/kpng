@@ -77,14 +77,14 @@ func (lb ipvsLB) ToService() IPVS.Service {
 	return s
 }
 
-func ipvsDestination(endpointInfo EndpointInfo, serviceInfo *ServiceInfo) IPVS.Destination {
-	targetPort := serviceInfo.TargetPort()
-	if serviceInfo.targetPort == 0 {
-		targetPort = endpointInfo.portMap[serviceInfo.TargetPortName()]
+func ipvsDestination(endpointInfo EndpointInfo, servicePortInfo *ServicePortInfo) IPVS.Destination {
+	targetPort := servicePortInfo.TargetPort()
+	if servicePortInfo.targetPort == 0 {
+		targetPort = endpointInfo.portMap[servicePortInfo.TargetPortName()]
 	}
 	return IPVS.Destination{
 		Address: net.ParseIP(endpointInfo.IP),
 		Port:    uint16(targetPort),
-		Weight:  serviceInfo.weight,
+		Weight:  servicePortInfo.weight,
 	}
 }

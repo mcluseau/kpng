@@ -62,7 +62,7 @@ type proxier struct {
 	//healthzServer       healthcheck.ProxierHealthUpdater
 
 	ipsetList map[string]*IPSet
-	//servicePortMap map[string]map[string]*ServiceInfo
+	//servicePortMap map[string]map[string]*ServicePortInfo
 	portMap map[string]map[string]localv1.PortMapping
 	// The following buffers are used to reuse memory and avoid allocations
 	// that are significantly impacting performance.
@@ -161,7 +161,7 @@ func (p *proxier) removeIPFromIPVSInterface(serviceIP string) {
 	}
 }
 
-func (p *proxier) createVirtualServer(servicePortInfo *ServiceInfo) {
+func (p *proxier) createVirtualServer(servicePortInfo *ServicePortInfo) {
 	vs := servicePortInfo.GetVirtualServer()
 
 	klog.V(2).Infof("adding AddVirtualServer: port: %v", servicePortInfo)
@@ -173,7 +173,7 @@ func (p *proxier) createVirtualServer(servicePortInfo *ServiceInfo) {
 	}
 }
 
-func (p *proxier) deleteVirtualServer(servicePortInfo *ServiceInfo) {
+func (p *proxier) deleteVirtualServer(servicePortInfo *ServicePortInfo) {
 	klog.V(2).Infof("deleting service , IP (%v) , port (%v)", servicePortInfo.IP, servicePortInfo.Port())
 	err := ipvs.DeleteService(servicePortInfo.GetVirtualServer().ToService())
 	if err != nil {
@@ -209,10 +209,10 @@ func (p *proxier) removeEntryFromIPSet(entry *ipsetutil.Entry, set *IPSet) {
 
 }
 
-func (p *proxier) addRealServer(serviceInfo *ServiceInfo, endpointInfo *EndpointInfo) {
+func (p *proxier) addRealServer(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
 	destination := ipvsSvcDst{
-		Svc: serviceInfo.GetVirtualServer().ToService(),
-		Dst: ipvsDestination(*endpointInfo, serviceInfo),
+		Svc: servicePortInfo.GetVirtualServer().ToService(),
+		Dst: ipvsDestination(*endpointInfo, servicePortInfo),
 	}
 	klog.V(2).Infof("adding destination ep (%v)", endpointInfo.IP)
 	if err := ipvs.AddDestination(destination.Svc, destination.Dst); err != nil && !strings.HasSuffix(err.Error(), "object exists") {
@@ -220,7 +220,7 @@ func (p *proxier) addRealServer(serviceInfo *ServiceInfo, endpointInfo *Endpoint
 	}
 }
 
-func (p *proxier) deleteRealServer(baseServicePort *ServiceInfo, endpointInfo *EndpointInfo) {
+func (p *proxier) deleteRealServer(baseServicePort *ServicePortInfo, endpointInfo *EndpointInfo) {
 
 	vs := baseServicePort.GetVirtualServer()
 	klog.V(2).Infof("deleteRealServer, portInfo : %v", endpointInfo)

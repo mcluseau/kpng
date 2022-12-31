@@ -10,74 +10,74 @@ func newClusterIPHandler(proxier *proxier) *ClusterIPHandler {
 
 }
 
-func (h *ClusterIPHandler) createService(serviceInfo *ServiceInfo) {
+func (h *ClusterIPHandler) createService(servicePortInfo *ServicePortInfo) {
 	// 1. create IPVS Virtual Server for ClusterIP
-	h.proxier.createVirtualServer(serviceInfo)
+	h.proxier.createVirtualServer(servicePortInfo)
 
 	// 2. add ClusterIP entry to kubeClusterIPSet
-	entry := getIPSetEntryForClusterIP("", serviceInfo)
+	entry := getIPSetEntryForClusterIP("", servicePortInfo)
 	h.proxier.addEntryInIPSet(entry, h.proxier.ipsetList[kubeClusterIPSet])
 
 	// 3. add ClusterIP to IPVS Interface
-	h.proxier.addIPToIPVSInterface(serviceInfo.IP)
+	h.proxier.addIPToIPVSInterface(servicePortInfo.IP)
 }
 
-func (h *ClusterIPHandler) createEndpoint(endpointInfo *EndpointInfo, serviceInfo *ServiceInfo) {
+func (h *ClusterIPHandler) createEndpoint(endpointInfo *EndpointInfo, servicePortInfo *ServicePortInfo) {
 	// 1. add EndpointIP to IPVS Load Balancer
-	h.proxier.addRealServer(serviceInfo, endpointInfo)
+	h.proxier.addRealServer(servicePortInfo, endpointInfo)
 
 	if endpointInfo.isLocal {
 		// 2. add Endpoint IP to kubeLoopBackIPSet IPSET if endpoint is local
-		entry := getIPSetEntryForEndPoint(endpointInfo, serviceInfo)
+		entry := getIPSetEntryForEndPoint(endpointInfo, servicePortInfo)
 		h.proxier.addEntryInIPSet(entry, h.proxier.ipsetList[kubeLoopBackIPSet])
 	}
 }
 
 // TODO what to do here ?
-func (h *ClusterIPHandler) updateService(serviceInfo *ServiceInfo) {
+func (h *ClusterIPHandler) updateService(servicePortInfo *ServicePortInfo) {
 
 }
 
 // TODO what to do here ?
-func (h *ClusterIPHandler) updateEndpoint(endpointInfo *EndpointInfo, serviceInfo *ServiceInfo) {
+func (h *ClusterIPHandler) updateEndpoint(endpointInfo *EndpointInfo, servicePortInfo *ServicePortInfo) {
 
 }
 
-func (h *ClusterIPHandler) deleteService(serviceInfo *ServiceInfo) {
+func (h *ClusterIPHandler) deleteService(servicePortInfo *ServicePortInfo) {
 	// 1. remove clusterIP from IPVS Interface
-	h.proxier.removeIPFromIPVSInterface(serviceInfo.IP)
+	h.proxier.removeIPFromIPVSInterface(servicePortInfo.IP)
 
 	// 2. remove ClusterIP entry from kubeClusterIPSet
-	entry := getIPSetEntryForClusterIP("", serviceInfo)
+	entry := getIPSetEntryForClusterIP("", servicePortInfo)
 	h.proxier.removeEntryFromIPSet(entry, h.proxier.ipsetList[kubeClusterIPSet])
 
 	// 3. delete IPVS Virtual Server
-	h.proxier.deleteVirtualServer(serviceInfo)
+	h.proxier.deleteVirtualServer(servicePortInfo)
 }
 
-func (h *ClusterIPHandler) deleteEndpoint(endpointInfo *EndpointInfo, serviceInfo *ServiceInfo) {
+func (h *ClusterIPHandler) deleteEndpoint(endpointInfo *EndpointInfo, servicePortInfo *ServicePortInfo) {
 	if endpointInfo.isLocal {
 		// 1. remove EndpointIP from kubeLoopBackIPSet IPSET if endpoint is local
-		entry := getIPSetEntryForEndPoint(endpointInfo, serviceInfo)
+		entry := getIPSetEntryForEndPoint(endpointInfo, servicePortInfo)
 		h.proxier.removeEntryFromIPSet(entry, h.proxier.ipsetList[kubeLoopBackIPSet])
 	}
 
 	// 2. remove EndpointIP from IPVS Load Balancer
-	h.proxier.deleteRealServer(serviceInfo, endpointInfo)
+	h.proxier.deleteRealServer(servicePortInfo, endpointInfo)
 }
 
-func (h *ClusterIPHandler) getServiceHandlers() map[Operation]func(*ServiceInfo) {
+func (h *ClusterIPHandler) getServiceHandlers() map[Operation]func(*ServicePortInfo) {
 	// CRUD services
-	handlers := make(map[Operation]func(*ServiceInfo))
+	handlers := make(map[Operation]func(*ServicePortInfo))
 	handlers[Create] = h.createService
 	handlers[Update] = h.updateService
 	handlers[Delete] = h.deleteService
 	return handlers
 }
 
-func (h *ClusterIPHandler) getEndpointHandlers() map[Operation]func(*EndpointInfo, *ServiceInfo) {
+func (h *ClusterIPHandler) getEndpointHandlers() map[Operation]func(*EndpointInfo, *ServicePortInfo) {
 	// CRUD endpoints
-	handlers := make(map[Operation]func(*EndpointInfo, *ServiceInfo))
+	handlers := make(map[Operation]func(*EndpointInfo, *ServicePortInfo))
 	handlers[Create] = h.createEndpoint
 	handlers[Update] = h.updateEndpoint
 	handlers[Delete] = h.deleteEndpoint

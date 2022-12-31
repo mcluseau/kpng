@@ -22,7 +22,7 @@ import (
 	"sigs.k8s.io/kpng/client/serviceevents"
 )
 
-// Operation which can be done on ServiceInfo and EndpointInfo
+// Operation which can be done on ServicePortInfo and EndpointInfo
 type Operation int32
 
 // 4 types of Operation(s) can be done on Services and Endpoints
@@ -35,17 +35,17 @@ const (
 
 // Handler contains the networking logic, calls proxier to implement the changes in network layer
 type Handler interface {
-	createService(*ServiceInfo)
-	createEndpoint(*EndpointInfo, *ServiceInfo)
+	createService(*ServicePortInfo)
+	createEndpoint(*EndpointInfo, *ServicePortInfo)
 
-	updateService(*ServiceInfo)
-	updateEndpoint(*EndpointInfo, *ServiceInfo)
+	updateService(*ServicePortInfo)
+	updateEndpoint(*EndpointInfo, *ServicePortInfo)
 
-	deleteService(*ServiceInfo)
-	deleteEndpoint(*EndpointInfo, *ServiceInfo)
+	deleteService(*ServicePortInfo)
+	deleteEndpoint(*EndpointInfo, *ServicePortInfo)
 
-	getServiceHandlers() map[Operation]func(*ServiceInfo)
-	getEndpointHandlers() map[Operation]func(*EndpointInfo, *ServiceInfo)
+	getServiceHandlers() map[Operation]func(*ServicePortInfo)
+	getEndpointHandlers() map[Operation]func(*EndpointInfo, *ServicePortInfo)
 }
 
 type ServiceType string
@@ -76,8 +76,8 @@ type EndpointInfo struct {
 	portMap map[string]int32
 }
 
-// ServiceInfo contains base information of a service in a structure that can be directly consumed by the proxier
-type ServiceInfo struct {
+// ServicePortInfo contains base information of a service in a structure that can be directly consumed by the proxier
+type ServicePortInfo struct {
 	IP                    string
 	LBIP                  string
 	serviceType           ServiceType
@@ -101,5 +101,5 @@ type ServiceInfo struct {
 
 // ResourceInfo can be used in generic functions/methods
 type ResourceInfo interface {
-	ServiceInfo | EndpointInfo
+	ServicePortInfo | EndpointInfo
 }

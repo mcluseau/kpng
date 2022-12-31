@@ -19,7 +19,7 @@ type IpvsController struct {
 
 	ipFamily v1.IPFamily
 
-	// service store for storing ServiceInfo object in diffstore
+	// service store for storing ServicePortInfo object in diffstore
 	svcStore *lightdiffstore.DiffStore
 
 	// endpoint store for storing EndpointInfo  object in diffstore
@@ -80,7 +80,7 @@ func (c *IpvsController) Callback(ch <-chan *client.ServiceEndpoints) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// reusable flag for ServiceInfo and EndpointInfo
+	// reusable flag for ServicePortInfo and EndpointInfo
 	isNew := false
 
 	// for tracking time
@@ -96,6 +96,8 @@ func (c *IpvsController) Callback(ch <-chan *client.ServiceEndpoints) {
 		service := serviceEndpoints.Service
 		endpoints := serviceEndpoints.Endpoints
 
+		klog.V(3).Infof("received service %s with %d endpoints", service.NamespacedName(), len(endpoints))
+
 		for _, port := range service.Ports {
 			// generate service; key format: [namespace + name + port + protocol]
 			svcKey := getSvcKey(service.NamespacedName(), port.Port, port.GetProtocol())
@@ -107,11 +109,11 @@ func (c *IpvsController) Callback(ch <-chan *client.ServiceEndpoints) {
 				isNew = true
 			}
 
-			// ServiceInfo, can be directly consumed by proxier
-			serviceInfo := NewServiceInfo(service, port, isNew, IPVSSchedulingMethod, IPVSWeight)
+			// ServicePortInfo, can be directly consumed by proxier
+			servicePortInfo := NewServicePortInfo(service, port, isNew, IPVSSchedulingMethod, IPVSWeight)
 
-			// add ServiceInfo to service diffstore
-			c.svcStore.Set([]byte(svcKey), getHashForDiffstore(*serviceInfo), *serviceInfo)
+			// add ServicePortInfo to service diffstore
+			c.svcStore.Set([]byte(svcKey), getHashForDiffstore(*servicePortInfo), *servicePortInfo)
 
 			// iterate over all endpoints
 			for _, endpoint := range endpoints {
@@ -157,12 +159,12 @@ func (c *IpvsController) Callback(ch <-chan *client.ServiceEndpoints) {
 func (c *IpvsController) apply(groups []PatchGroup) {
 	for _, group := range groups {
 		// get handler for the ServiceType
-		handler, ok := c.handlers[group.svc.serviceInfo.serviceType]
+		handler, ok := c.handlers[group.svc.servicePortInfo.serviceType]
 		if ok {
 			// apply the patch
 			group.apply(handler.getServiceHandlers(), handler.getEndpointHandlers())
 		} else {
-			klog.V(3).Infof("IPVS fullstate not yet implemented for %v", group.svc.serviceInfo.serviceType)
+			klog.V(3).Infof("IPVS fullstate not yet implemented for %v", group.svc.servicePortInfo.serviceType)
 		}
 	}
 }

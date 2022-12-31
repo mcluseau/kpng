@@ -1,35 +1,35 @@
 package ipvsfullsate
 
-// ServicePatch -> ServiceInfo and Operation
+// ServicePatch -> ServicePortInfo and Operation
 type ServicePatch struct {
-	serviceInfo *ServiceInfo
-	op          Operation
+	servicePortInfo *ServicePortInfo
+	op              Operation
 }
 
 // apply will invoke the handler which interacts with proxier to implement network rules
 // low level networking logic is injected as a dependency. see Handler interface
-func (p *ServicePatch) apply(handler map[Operation]func(serviceInfo *ServiceInfo)) {
-	handler[p.op](p.serviceInfo)
+func (p *ServicePatch) apply(handler map[Operation]func(servicePortInfo *ServicePortInfo)) {
+	handler[p.op](p.servicePortInfo)
 }
 
-// EndpointPatch -> EndpointInfo, ServiceInfo, and Operation
+// EndpointPatch -> EndpointInfo, ServicePortInfo, and Operation
 type EndpointPatch struct {
-	endpointInfo *EndpointInfo
-	serviceInfo  *ServiceInfo
-	op           Operation
+	endpointInfo    *EndpointInfo
+	servicePortInfo *ServicePortInfo
+	op              Operation
 }
 
 // apply will invoke the handler which interacts with proxier to implement network rules
 // low level networking logic is injected as a dependency. see Handler interface
-func (p *EndpointPatch) apply(handler map[Operation]func(endpointInfo *EndpointInfo, serviceInfo *ServiceInfo)) {
-	handler[p.op](p.endpointInfo, p.serviceInfo)
+func (p *EndpointPatch) apply(handler map[Operation]func(endpointInfo *EndpointInfo, servicePortInfo *ServicePortInfo)) {
+	handler[p.op](p.endpointInfo, p.servicePortInfo)
 }
 
 // EndpointPatches -> [] EndpointPatch
 type EndpointPatches []EndpointPatch
 
 // apply will call apply on each EndpointPatch
-func (e EndpointPatches) apply(handler map[Operation]func(*EndpointInfo, *ServiceInfo)) {
+func (e EndpointPatches) apply(handler map[Operation]func(*EndpointInfo, *ServicePortInfo)) {
 	for _, patch := range e {
 		patch.apply(handler)
 	}
@@ -47,8 +47,8 @@ type PatchGroup struct {
 // apply will apply ServicePatch and EndpointPatches in the order which we want
 // networking logic is passed as a dependency
 func (p *PatchGroup) apply(
-	serviceHandler map[Operation]func(*ServiceInfo),
-	endpointHandler map[Operation]func(*EndpointInfo, *ServiceInfo),
+	serviceHandler map[Operation]func(*ServicePortInfo),
+	endpointHandler map[Operation]func(*EndpointInfo, *ServicePortInfo),
 ) {
 	// switching on ServicePatch Operation and maintaining order accordingly
 	switch p.svc.op {
@@ -60,7 +60,7 @@ func (p *PatchGroup) apply(
 		p.svc.apply(serviceHandler)
 		p.eps.apply(endpointHandler)
 	case Update:
-	//	TODO
+		p.svc.apply(serviceHandler)
 	case Delete:
 		// first endpoints; then service
 		p.eps.apply(endpointHandler)
@@ -76,19 +76,19 @@ func (c *IpvsController) generatePatchGroups() []PatchGroup {
 	//////////////////////////////////////////////// Service Store - Updates //////////////////////////////////////////////////
 	for _, KV := range c.svcStore.Updated() {
 		svcKey := string(KV.Key)
-		serviceInfo := KV.Value.(ServiceInfo)
+		servicePortInfo := KV.Value.(ServicePortInfo)
 
 		// isNew flag was added at the time of callback; refer c.Callback
-		if serviceInfo.isNew {
+		if servicePortInfo.isNew {
 			// create new patch group; add service with create operation; initialise endpoints patch
 			patchGroupMap[svcKey] = PatchGroup{
-				ServicePatch{serviceInfo: &serviceInfo, op: Create},
+				ServicePatch{servicePortInfo: &servicePortInfo, op: Create},
 				make([]EndpointPatch, 0),
 			}
 		} else {
 			// create new patch group; add service with update operation; initialise endpoints patch
 			patchGroupMap[svcKey] = PatchGroup{
-				ServicePatch{serviceInfo: &serviceInfo, op: Update},
+				ServicePatch{servicePortInfo: &servicePortInfo, op: Update},
 				make([]EndpointPatch, 0),
 			}
 		}
@@ -98,11 +98,11 @@ func (c *IpvsController) generatePatchGroups() []PatchGroup {
 	//////////////////////////////////////////////// Service Store - Deletes //////////////////////////////////////////////////
 	for _, KV := range c.svcStore.Deleted() {
 		svcKey := string(KV.Key)
-		servicePortInfo := KV.Value.(ServiceInfo)
+		servicePortInfo := KV.Value.(ServicePortInfo)
 
 		// create new patch group; add service with delete operation; initialise endpoints patch
 		patchGroupMap[svcKey] = PatchGroup{
-			ServicePatch{serviceInfo: &servicePortInfo, op: Delete},
+			ServicePatch{servicePortInfo: &servicePortInfo, op: Delete},
 			make([]EndpointPatch, 0),
 		}
 
@@ -122,11 +122,11 @@ func (c *IpvsController) generatePatchGroups() []PatchGroup {
 			if endpointInfo.isNew {
 				// append endpoint entry to patch group endpoints with create operation
 				group.eps = append(patchGroupMap[svcKey].eps,
-					EndpointPatch{endpointInfo: &endpointInfo, serviceInfo: patchGroupMap[svcKey].svc.serviceInfo, op: Create})
+					EndpointPatch{endpointInfo: &endpointInfo, servicePortInfo: patchGroupMap[svcKey].svc.servicePortInfo, op: Create})
 			} else {
 				// append endpoint entry to patch group endpoints with update operation
 				group.eps = append(patchGroupMap[svcKey].eps,
-					EndpointPatch{endpointInfo: &endpointInfo, serviceInfo: patchGroupMap[svcKey].svc.serviceInfo, op: Update})
+					EndpointPatch{endpointInfo: &endpointInfo, servicePortInfo: patchGroupMap[svcKey].svc.servicePortInfo, op: Update})
 			}
 			patchGroupMap[svcKey] = group
 
@@ -134,21 +134,21 @@ func (c *IpvsController) generatePatchGroups() []PatchGroup {
 			// this handles the cases when only endpoints are changed (created/updated/deleted) and service remains as it is
 			// lookup the service from the service store; and add a NoOp entry
 			serviceResults := c.svcStore.GetByPrefix([]byte(endpointInfo.svcKey))[0]
-			serviceInfo := serviceResults.Value.(ServiceInfo)
+			servicePortInfo := serviceResults.Value.(ServicePortInfo)
 
 			if endpointInfo.isNew {
 				// create new patch group; add service with no-op operation; initialise endpoints patch with
 				// endpoint entry and create operation
 				patchGroupMap[endpointInfo.svcKey] = PatchGroup{
-					svc: ServicePatch{serviceInfo: &serviceInfo, op: NoOp},
-					eps: []EndpointPatch{{endpointInfo: &endpointInfo, serviceInfo: &serviceInfo, op: Create}},
+					svc: ServicePatch{servicePortInfo: &servicePortInfo, op: NoOp},
+					eps: []EndpointPatch{{endpointInfo: &endpointInfo, servicePortInfo: &servicePortInfo, op: Create}},
 				}
 			} else {
 				// create new patch group; add service with no-op operation; initialise endpoints patch with
 				// endpoint entry and update operation
 				patchGroupMap[endpointInfo.svcKey] = PatchGroup{
-					svc: ServicePatch{serviceInfo: &serviceInfo, op: NoOp},
-					eps: []EndpointPatch{{endpointInfo: &endpointInfo, serviceInfo: &serviceInfo, op: Update}},
+					svc: ServicePatch{servicePortInfo: &servicePortInfo, op: NoOp},
+					eps: []EndpointPatch{{endpointInfo: &endpointInfo, servicePortInfo: &servicePortInfo, op: Update}},
 				}
 			}
 
@@ -166,19 +166,19 @@ func (c *IpvsController) generatePatchGroups() []PatchGroup {
 		if group, ok := patchGroupMap[svcKey]; ok {
 			// append endpoint entry to patch group endpoints with delete operation
 			group.eps = append(patchGroupMap[svcKey].eps,
-				EndpointPatch{endpointInfo: &endpointInfo, serviceInfo: patchGroupMap[svcKey].svc.serviceInfo, op: Delete})
+				EndpointPatch{endpointInfo: &endpointInfo, servicePortInfo: patchGroupMap[svcKey].svc.servicePortInfo, op: Delete})
 			patchGroupMap[svcKey] = group
 		} else {
 			// this handles the cases when only endpoints are changed (created/updated/deleted) and service remains as it is
 			// lookup the service from the service store; and add a NoOp entry
 			serviceResults := c.svcStore.GetByPrefix([]byte(endpointInfo.svcKey))[0]
-			serviceInfo := serviceResults.Value.(ServiceInfo)
+			servicePortInfo := serviceResults.Value.(ServicePortInfo)
 
 			// create new patch group; add service with no-op operation; initialise endpoints patch with
 			// endpoint entry and delete operation
 			patchGroupMap[endpointInfo.svcKey] = PatchGroup{
-				svc: ServicePatch{serviceInfo: &serviceInfo, op: NoOp},
-				eps: []EndpointPatch{{endpointInfo: &endpointInfo, serviceInfo: &serviceInfo, op: Delete}},
+				svc: ServicePatch{servicePortInfo: &servicePortInfo, op: NoOp},
+				eps: []EndpointPatch{{endpointInfo: &endpointInfo, servicePortInfo: &servicePortInfo, op: Delete}},
 			}
 		}
 

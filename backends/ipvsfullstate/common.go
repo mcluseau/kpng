@@ -31,11 +31,7 @@ func getSvcKey(svcNamespacedName string, port int32, protocol localv1.Protocol) 
 }
 
 func getEpKey(svcKey string, endpointIp string) string {
-	return fmt.Sprintf("%s%s%s",
-		svcKey,
-		DiffstoreDelimiter,
-		endpointIp,
-	)
+	return fmt.Sprintf("%s%s%s", svcKey, DiffstoreDelimiter, endpointIp)
 }
 
 func asDummyIPs(ip string, ipFamily v1.IPFamily) string {
