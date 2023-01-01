@@ -11,7 +11,7 @@ import (
 func getIPSetEntryForClusterIP(srcAddr string, servicePortInfo *ServicePortInfo) *ipsetutil.Entry {
 	if srcAddr != "" {
 		return &ipsetutil.Entry{
-			IP:       servicePortInfo.ServiceIP(),
+			IP:       servicePortInfo.GetIP(),
 			Port:     int(servicePortInfo.Port()),
 			Protocol: strings.ToLower(servicePortInfo.Protocol().String()),
 			SetType:  ipsetutil.HashIPPort,
@@ -19,7 +19,7 @@ func getIPSetEntryForClusterIP(srcAddr string, servicePortInfo *ServicePortInfo)
 		}
 	}
 	return &ipsetutil.Entry{
-		IP:       servicePortInfo.ServiceIP(),
+		IP:       servicePortInfo.GetIP(),
 		Port:     int(servicePortInfo.Port()),
 		Protocol: strings.ToLower(servicePortInfo.Protocol().String()),
 		SetType:  ipsetutil.HashIPPort,
@@ -28,10 +28,10 @@ func getIPSetEntryForClusterIP(srcAddr string, servicePortInfo *ServicePortInfo)
 
 func getIPSetEntryForEndPoint(endpointInfo *EndpointInfo, servicePortInfo *ServicePortInfo) *ipsetutil.Entry {
 	return &ipsetutil.Entry{
-		IP:       endpointInfo.IP,
+		IP:       endpointInfo.GetIP(),
 		Port:     int(servicePortInfo.TargetPort()),
 		Protocol: strings.ToLower(servicePortInfo.Protocol().String()),
-		IP2:      endpointInfo.IP,
+		IP2:      endpointInfo.GetIP(),
 		SetType:  ipsetutil.HashIPPortIP,
 	}
 }

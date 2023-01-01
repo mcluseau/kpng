@@ -1,14 +1,14 @@
 package ipvsfullsate
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"github.com/cespare/xxhash"
+
 	v1 "k8s.io/api/core/v1"
 	netutils "k8s.io/utils/net"
 	"net"
 	"sigs.k8s.io/kpng/api/localv1"
+	"strconv"
 )
 
 const (
@@ -18,20 +18,15 @@ const (
 	FlagHashed = 0x2
 )
 
-const DiffstoreDelimiter = "||"
+const Delimiter = "||"
 
-func getSvcKey(svcNamespacedName string, port int32, protocol localv1.Protocol) string {
-	return fmt.Sprintf("%s%s%d%s%d",
-		svcNamespacedName,
-		DiffstoreDelimiter,
-		port,
-		DiffstoreDelimiter,
-		protocol,
-	)
+func getSvcKey(servicePortInfo *ServicePortInfo) string {
+	hash := getHashForDiffstore(servicePortInfo)
+	return strconv.FormatUint(hash, 10)
 }
 
 func getEpKey(svcKey string, endpointIp string) string {
-	return fmt.Sprintf("%s%s%s", svcKey, DiffstoreDelimiter, endpointIp)
+	return fmt.Sprintf("%s%s%s", svcKey, Delimiter, endpointIp)
 }
 
 func asDummyIPs(ip string, ipFamily v1.IPFamily) string {
@@ -112,8 +107,28 @@ func getLoadBalancerIPByFamily(ipFamily v1.IPFamily, service *localv1.Service) s
 	return ""
 }
 
-func getHashForDiffstore[Info ResourceInfo](info Info) uint64 {
-	infoBytes := new(bytes.Buffer)
-	_ = json.NewEncoder(infoBytes).Encode(info)
-	return xxhash.Sum64(infoBytes.Bytes())
+// getIPFilterTargetIpsAndSourceRanges returns a service clusterIP by family
+func getIPFilterTargetIpsAndSourceRanges(ipFamily v1.IPFamily, service *localv1.Service) ([]string, []string) {
+	targetIps := make([]string, 0)
+	sourceRanges := make([]string, 0)
+
+	if len(service.IPFilters) > 0 {
+		for _, filters := range service.IPFilters {
+			if ipFamily == v1.IPv4Protocol {
+				for _, ip := range filters.TargetIPs.V4 {
+					targetIps = append(targetIps, ip)
+				}
+			} else {
+				for _, ip := range filters.TargetIPs.V6 {
+					targetIps = append(targetIps, ip)
+				}
+			}
+			sourceRanges = append(sourceRanges, filters.SourceRanges...)
+		}
+
+	}
+	return targetIps, sourceRanges
+}
+func getHashForDiffstore(info ResourceInfo) uint64 {
+	return xxhash.Sum64(info.ToBytes())
 }

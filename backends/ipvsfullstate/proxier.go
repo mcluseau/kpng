@@ -129,12 +129,12 @@ func (p *proxier) addIPToIPVSInterface(serviceIP string) {
 	}
 
 	if p.dummy == nil {
-		klog.Error("exit early while adding dummy IP ", ip, "; dummy link device not found")
+		klog.Error("exit early while adding dummy ip ", ip, "; dummy link device not found")
 		return
 	}
-	klog.V(2).Info("adding dummy IP ", ip)
+	klog.V(2).Info("adding dummy ip ", ip)
 	if err = netlink.AddrAdd(p.dummy, &netlink.Addr{IPNet: ipNet}); err != nil {
-		klog.Error("failed to add dummy IP ", ip, ": ", err)
+		klog.Error("failed to add dummy ip ", ip, ": ", err)
 	}
 }
 
@@ -174,16 +174,16 @@ func (p *proxier) createVirtualServer(servicePortInfo *ServicePortInfo) {
 }
 
 func (p *proxier) deleteVirtualServer(servicePortInfo *ServicePortInfo) {
-	klog.V(2).Infof("deleting service , IP (%v) , port (%v)", servicePortInfo.IP, servicePortInfo.Port())
+	klog.V(2).Infof("deleting service , IP (%v) , port (%v)", servicePortInfo.GetIP(), servicePortInfo.Port())
 	err := ipvs.DeleteService(servicePortInfo.GetVirtualServer().ToService())
 	if err != nil {
-		klog.Error("failed to delete service from IPVS", servicePortInfo.IP, ": ", err)
+		klog.Error("failed to delete service from IPVS", servicePortInfo.GetIP(), ": ", err)
 	}
 }
 
 func (p *proxier) addEntryInIPSet(entry *ipsetutil.Entry, set *IPSet) {
 	if valid := set.validateEntry(entry); !valid {
-		klog.Errorf("error adding entry to ipset. entry:%s, ipset:%s", entry.String(), p.ipsetList[kubeLoopBackIPSet].Name)
+		klog.Errorf("error adding entry to ipset. entry:%s, ipset:%s", entry.String(), set.Name)
 		return
 	}
 
@@ -197,7 +197,7 @@ func (p *proxier) addEntryInIPSet(entry *ipsetutil.Entry, set *IPSet) {
 
 func (p *proxier) removeEntryFromIPSet(entry *ipsetutil.Entry, set *IPSet) {
 	if valid := set.validateEntry(entry); !valid {
-		klog.Errorf("error adding entry to ipset. entry:%s, ipset:%s", entry.String(), p.ipsetList[kubeLoopBackIPSet].Name)
+		klog.Errorf("error adding entry to ipset. entry:%s, ipset:%s", entry.String(), set.Name)
 		return
 	}
 
@@ -214,7 +214,7 @@ func (p *proxier) addRealServer(servicePortInfo *ServicePortInfo, endpointInfo *
 		Svc: servicePortInfo.GetVirtualServer().ToService(),
 		Dst: ipvsDestination(*endpointInfo, servicePortInfo),
 	}
-	klog.V(2).Infof("adding destination ep (%v)", endpointInfo.IP)
+	klog.V(2).Infof("adding destination ep (%v)", endpointInfo.GetIP())
 	if err := ipvs.AddDestination(destination.Svc, destination.Dst); err != nil && !strings.HasSuffix(err.Error(), "object exists") {
 		klog.Error("failed to add destination : ", err)
 	}

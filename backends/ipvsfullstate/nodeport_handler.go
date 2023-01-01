@@ -22,7 +22,7 @@ func (h *NodePortHandler) getServiceCounterparts(servicePortInfo *ServicePortInf
 	nodeServicePortInfos := make([]*ServicePortInfo, 0)
 	for _, nodeIP := range h.proxier.nodeAddresses {
 		nodeServicePortInfo := servicePortInfo.Clone()
-		nodeServicePortInfo.IP = nodeIP
+		nodeServicePortInfo.SetIP(nodeIP)
 		nodeServicePortInfos = append(nodeServicePortInfos, nodeServicePortInfo)
 	}
 	return clusterIPServicePortInfo, nodeServicePortInfos
@@ -44,7 +44,7 @@ func (h *NodePortHandler) createService(servicePortInfo *ServicePortInfo) {
 	h.proxier.addEntryInIPSet(entry, h.proxier.ipsetList[kubeClusterIPSet])
 
 	// 3. add ClusterIP to IPVS Interface
-	h.proxier.addIPToIPVSInterface(clusterIPServicePortInfo.IP)
+	h.proxier.addIPToIPVSInterface(clusterIPServicePortInfo.GetIP())
 
 	// Node Port Specific operations
 
@@ -102,13 +102,13 @@ func (h *NodePortHandler) createEndpoint(endpointInfo *EndpointInfo, servicePort
 		h.proxier.addRealServer(nodeServicePortInfo, endpointInfo)
 	}
 
-	if endpointInfo.isLocal {
-		// 4. add Endpoint IP to kubeLoopBackIPSet IPSET if endpoint is local
-		for _, nodeServicePortInfo := range nodeServicePortInfos {
-			entry := getIPSetEntryForEndPoint(endpointInfo, nodeServicePortInfo)
-			h.proxier.addEntryInIPSet(entry, h.proxier.ipsetList[kubeLoopBackIPSet])
-		}
-	}
+	//if endpointInfo.isLocal {
+	//	// 4. add Endpoint IP to kubeLoopBackIPSet IPSET if endpoint is local
+	//	for _, nodeServicePortInfo := range nodeServicePortInfos {
+	//		entry := getIPSetEntryForEndPoint(endpointInfo, nodeServicePortInfo)
+	//		h.proxier.addEntryInIPSet(entry, h.proxier.ipsetList[kubeLoopBackIPSet])
+	//	}
+	//}
 }
 
 // TODO what to do here ?
@@ -129,7 +129,7 @@ func (h *NodePortHandler) deleteService(servicePortInfo *ServicePortInfo) {
 	// ClusterIP operations for NodePort Service
 
 	// 1. remove clusterIP from IPVS Interface
-	h.proxier.removeIPFromIPVSInterface(clusterIPServicePortInfo.IP)
+	h.proxier.removeIPFromIPVSInterface(clusterIPServicePortInfo.GetIP())
 
 	// 2. remove ClusterIP entry from kubeClusterIPSet
 	entry = getIPSetEntryForClusterIP("", clusterIPServicePortInfo)
@@ -190,14 +190,13 @@ func (h *NodePortHandler) deleteEndpoint(endpointInfo *EndpointInfo, servicePort
 	h.proxier.deleteRealServer(clusterIPServicePortInfo, endpointInfo)
 
 	// Node Port Specific operations
-
-	if endpointInfo.isLocal {
-		// 3. remove EndpointIP from kubeLoopBackIPSet IPSET if endpoint is local
-		for _, nodeServicePortInfo := range nodeServicePortInfos {
-			entry := getIPSetEntryForEndPoint(endpointInfo, nodeServicePortInfo)
-			h.proxier.removeEntryFromIPSet(entry, h.proxier.ipsetList[kubeLoopBackIPSet])
-		}
-	}
+	//if endpointInfo.isLocal {
+	//	// 3. remove EndpointIP from kubeLoopBackIPSet IPSET if endpoint is local
+	//	for _, nodeServicePortInfo := range nodeServicePortInfos {
+	//		entry := getIPSetEntryForEndPoint(endpointInfo, nodeServicePortInfo)
+	//		h.proxier.removeEntryFromIPSet(entry, h.proxier.ipsetList[kubeLoopBackIPSet])
+	//	}
+	//}
 	// 4. remove EndpointIP from IPVS Load Balancer
 	for _, nodeServicePortInfo := range nodeServicePortInfos {
 		h.proxier.deleteRealServer(nodeServicePortInfo, endpointInfo)

@@ -67,21 +67,28 @@ const (
 	IPVSWeight           = 1
 )
 
+// ResourceInfo interface for ServicePortInfo and EndpointInfo
+type ResourceInfo interface {
+	ToBytes() []byte
+}
+
 // EndpointInfo contains base information of an endpoint in a structure that can be directly consumed by the proxier
 type EndpointInfo struct {
-	isNew   bool
 	svcKey  string
-	IP      string
+	ip      string
+	isNew   bool
 	isLocal bool
 	portMap map[string]int32
 }
 
 // ServicePortInfo contains base information of a service in a structure that can be directly consumed by the proxier
 type ServicePortInfo struct {
-	IP                    string
-	LBIP                  string
-	serviceType           ServiceType
+	name                  string
+	namespace             string
 	isNew                 bool
+	ip                    string
+	lbIP                  string
+	serviceType           ServiceType
 	port                  int32
 	targetPort            int32
 	targetPortName        string
@@ -96,10 +103,6 @@ type ServicePortInfo struct {
 	nodeLocalInternal     bool
 	internalTrafficPolicy *v1.ServiceInternalTrafficPolicyType
 	hintsAnnotation       string
-	ipFilters             []*localv1.IPFilter
-}
-
-// ResourceInfo can be used in generic functions/methods
-type ResourceInfo interface {
-	ServicePortInfo | EndpointInfo
+	ipFilterTargetIps     []string
+	ipFilterSourceRanges  []string
 }

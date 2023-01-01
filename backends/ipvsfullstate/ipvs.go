@@ -2,6 +2,7 @@ package ipvsfullsate
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/vishvananda/netlink"
 	v1 "k8s.io/api/core/v1"
@@ -63,7 +64,7 @@ func NewIPVSController(dummy netlink.Link) IpvsController {
 	handlers := make(map[ServiceType]Handler)
 	handlers[ClusterIPService] = newClusterIPHandler(ipv4Proxier)
 	handlers[NodePortService] = newNodePortHandler(ipv4Proxier)
-	// TODO - add handler for LoadBalancer ServiceType
+	// TODO - add handler for LoadBalancer serviceType
 	// handlers[LoadBalancerService] = newLoadBalancerHandler(ipv4Proxier)
 
 	return IpvsController{
@@ -80,8 +81,8 @@ func (c *IpvsController) Callback(ch <-chan *client.ServiceEndpoints) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// reusable flag for ServicePortInfo and EndpointInfo
-	isNew := false
+	//// reusable flag for ServicePortInfo and EndpointInfo
+	//isNew := false
 
 	// for tracking time
 	st := time.Now()
@@ -99,48 +100,36 @@ func (c *IpvsController) Callback(ch <-chan *client.ServiceEndpoints) {
 		klog.V(3).Infof("received service %s with %d endpoints", service.NamespacedName(), len(endpoints))
 
 		for _, port := range service.Ports {
-			// generate service; key format: [namespace + name + port + protocol]
-			svcKey := getSvcKey(service.NamespacedName(), port.Port, port.GetProtocol())
-
-			//  lookup diffstore to check if service is new or old, this will be used to
-			// distinguish between Create and Update Operation
-			isNew = false
-			if len(c.svcStore.GetByPrefix([]byte(svcKey))) == 0 {
-				isNew = true
-			}
 
 			// ServicePortInfo, can be directly consumed by proxier
-			servicePortInfo := NewServicePortInfo(service, port, isNew, IPVSSchedulingMethod, IPVSWeight)
+			servicePortInfo := NewServicePortInfo(service, port, IPVSSchedulingMethod, IPVSWeight)
+
+			// generate service; key format: [namespace + name + port + protocol]
+			svcKey := getSvcKey(servicePortInfo)
 
 			// add ServicePortInfo to service diffstore
-			c.svcStore.Set([]byte(svcKey), getHashForDiffstore(*servicePortInfo), *servicePortInfo)
+			c.svcStore.Set([]byte(svcKey), getHashForDiffstore(servicePortInfo), *servicePortInfo)
 
 			// iterate over all endpoints
 			for _, endpoint := range endpoints {
 				for _, endpointIP := range endpoint.GetIPs().V4 {
 
-					// generate endpoint; key format: [service key + endpoint IP]
+					// generate endpoint; key format: [service key + endpoint ip]
 					epKey := getEpKey(svcKey, endpointIP)
 
 					// check if new or existing endpoint
 					//  lookup diffstore to check if endpoint is new or old, this will be used to
 					// distinguish between Create and Update Operation
-					isNew = false
-					if len(c.epStore.GetByPrefix([]byte(epKey))) == 0 {
-						isNew = true
-					}
+					//isNew = false
+					//if len(c.epStore.GetByPrefix([]byte(epKey))) == 0 {
+					//	isNew = true
+					//}
 
 					// EndpointInfo, can be directly consumed by proxier
-					endpointInfo := &EndpointInfo{
-						svcKey:  svcKey,
-						isNew:   isNew,
-						IP:      endpointIP,
-						isLocal: endpoint.GetLocal(),
-						portMap: endpoint.PortNameMappings(service.Ports),
-					}
+					endpointInfo := NewEndpointInfo(svcKey, endpointIP, endpoint)
 
 					// add EndpointInfo to endpoint diffstore
-					c.epStore.Set([]byte(epKey), getHashForDiffstore(*endpointInfo), *endpointInfo)
+					c.epStore.Set([]byte(epKey), getHashForDiffstore(endpointInfo), *endpointInfo)
 				}
 			}
 		}
@@ -157,8 +146,15 @@ func (c *IpvsController) Callback(ch <-chan *client.ServiceEndpoints) {
 }
 
 func (c *IpvsController) apply(groups []PatchGroup) {
+	// TODO get rid of this
+	// delete ops should precede create ops
+	sort.Slice(groups, func(i, j int) bool {
+		return groups[i].svc.op > groups[j].svc.op
+	})
+
 	for _, group := range groups {
-		// get handler for the ServiceType
+		klog.V(3).Infof("patch group: service=%s; %d; endpoints=%d", group.svc.servicePortInfo.NamespacedName(), group.svc.op, len(group.eps))
+		// get handler for the serviceType
 		handler, ok := c.handlers[group.svc.servicePortInfo.serviceType]
 		if ok {
 			// apply the patch

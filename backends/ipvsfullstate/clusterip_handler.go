@@ -19,7 +19,7 @@ func (h *ClusterIPHandler) createService(servicePortInfo *ServicePortInfo) {
 	h.proxier.addEntryInIPSet(entry, h.proxier.ipsetList[kubeClusterIPSet])
 
 	// 3. add ClusterIP to IPVS Interface
-	h.proxier.addIPToIPVSInterface(servicePortInfo.IP)
+	h.proxier.addIPToIPVSInterface(servicePortInfo.GetIP())
 }
 
 func (h *ClusterIPHandler) createEndpoint(endpointInfo *EndpointInfo, servicePortInfo *ServicePortInfo) {
@@ -45,7 +45,7 @@ func (h *ClusterIPHandler) updateEndpoint(endpointInfo *EndpointInfo, servicePor
 
 func (h *ClusterIPHandler) deleteService(servicePortInfo *ServicePortInfo) {
 	// 1. remove clusterIP from IPVS Interface
-	h.proxier.removeIPFromIPVSInterface(servicePortInfo.IP)
+	h.proxier.removeIPFromIPVSInterface(servicePortInfo.GetIP())
 
 	// 2. remove ClusterIP entry from kubeClusterIPSet
 	entry := getIPSetEntryForClusterIP("", servicePortInfo)
