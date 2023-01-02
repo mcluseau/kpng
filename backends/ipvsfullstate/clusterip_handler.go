@@ -1,5 +1,7 @@
 package ipvsfullsate
 
+import ipsetutil "sigs.k8s.io/kpng/backends/ipvsfullstate/util"
+
 // ClusterIPHandler has all the logic for invocation of IPVS, IPSETS and INTERFACES for CRUD on ClusterIP services
 type ClusterIPHandler struct {
 	proxier *proxier
@@ -11,20 +13,34 @@ func newClusterIPHandler(proxier *proxier) *ClusterIPHandler {
 }
 
 func (h *ClusterIPHandler) createService(servicePortInfo *ServicePortInfo) {
+	var entry *ipsetutil.Entry
+
 	// 1. create IPVS Virtual Server for ClusterIP
-	h.proxier.createVirtualServer(servicePortInfo)
+	h.proxier.createVirtualServerForClusterIP(servicePortInfo)
 
 	// 2. add ClusterIP entry to kubeClusterIPSet
-	entry := getIPSetEntryForClusterIP("", servicePortInfo)
+	entry = getIPSetEntryForClusterIP("", servicePortInfo)
 	h.proxier.addEntryInIPSet(entry, h.proxier.ipsetList[kubeClusterIPSet])
 
 	// 3. add ClusterIP to IPVS Interface
-	h.proxier.addIPToIPVSInterface(servicePortInfo.GetIP())
+	h.proxier.addIPToIPVSInterface(servicePortInfo.GetClusterIP())
+
+	// if service has an external IP
+	if servicePortInfo.GetExternalIP() != "" {
+
+		// 4. create IPVS Virtual Server for ExternalIP
+		h.proxier.createVirtualServerForExternalIP(servicePortInfo)
+
+		// 5. add ExternalIP entry to kubeExternalIPSet
+		entry = getIPSetEntryForExternalIP("", servicePortInfo)
+		h.proxier.addEntryInIPSet(entry, h.proxier.ipsetList[kubeExternalIPSet])
+	}
+
 }
 
 func (h *ClusterIPHandler) createEndpoint(endpointInfo *EndpointInfo, servicePortInfo *ServicePortInfo) {
 	// 1. add EndpointIP to IPVS Load Balancer
-	h.proxier.addRealServer(servicePortInfo, endpointInfo)
+	h.proxier.addRealServerForClusterIP(servicePortInfo, endpointInfo)
 
 	if endpointInfo.isLocal {
 		// 2. add Endpoint IP to kubeLoopBackIPSet IPSET if endpoint is local
@@ -45,14 +61,25 @@ func (h *ClusterIPHandler) updateEndpoint(endpointInfo *EndpointInfo, servicePor
 
 func (h *ClusterIPHandler) deleteService(servicePortInfo *ServicePortInfo) {
 	// 1. remove clusterIP from IPVS Interface
-	h.proxier.removeIPFromIPVSInterface(servicePortInfo.GetIP())
+	h.proxier.removeIPFromIPVSInterface(servicePortInfo.GetClusterIP())
 
 	// 2. remove ClusterIP entry from kubeClusterIPSet
 	entry := getIPSetEntryForClusterIP("", servicePortInfo)
 	h.proxier.removeEntryFromIPSet(entry, h.proxier.ipsetList[kubeClusterIPSet])
 
 	// 3. delete IPVS Virtual Server
-	h.proxier.deleteVirtualServer(servicePortInfo)
+	h.proxier.deleteVirtualServerForClusterIP(servicePortInfo)
+
+	// if service has an external IP
+	if servicePortInfo.GetExternalIP() != "" {
+
+		// 4. add ExternalIP entry to kubeExternalIPSet
+		entry = getIPSetEntryForExternalIP("", servicePortInfo)
+		h.proxier.removeEntryFromIPSet(entry, h.proxier.ipsetList[kubeExternalIPSet])
+
+		// 5. create IPVS Virtual Server for ExternalIP
+		h.proxier.deleteVirtualServerForExternalIP(servicePortInfo)
+	}
 }
 
 func (h *ClusterIPHandler) deleteEndpoint(endpointInfo *EndpointInfo, servicePortInfo *ServicePortInfo) {
@@ -63,7 +90,8 @@ func (h *ClusterIPHandler) deleteEndpoint(endpointInfo *EndpointInfo, servicePor
 	}
 
 	// 2. remove EndpointIP from IPVS Load Balancer
-	h.proxier.deleteRealServer(servicePortInfo, endpointInfo)
+	h.proxier.deleteRealServerForClusterIP(servicePortInfo, endpointInfo)
+
 }
 
 func (h *ClusterIPHandler) getServiceHandlers() map[Operation]func(*ServicePortInfo) {

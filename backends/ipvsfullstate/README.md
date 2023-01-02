@@ -1,8 +1,11 @@
 # IPVS Fullstate Implementation
-This implementation roughly follows [bridge design pattern](https://en.wikipedia.org/wiki/Bridge_pattern).  **IPVSController** acts as an abstraction and **Handler** acts as implementer.  
+
+This implementation roughly follows [bridge design pattern](https://en.wikipedia.org/wiki/Bridge_pattern).  **
+IPVSController** acts as an abstraction and **Handler** acts as implementer.  
 This implementation can be broken down into three major steps.
 
 ## 1. Registration
+
 - **reister.go**
 
   ```init()``` registers backend with the brain
@@ -35,26 +38,27 @@ This implementation can be broken down into three major steps.
       handlers map[ServiceType]Handler
   }
   ```
-  ```IpvsController``` takes care of high order of things - **what needs to be done** after receiving full state callbacks.
+  ```IpvsController``` takes care of high order of things - **what needs to be done** after receiving full state
+  callbacks.
 
 - **proxier.go**
-  
+
   **proxier** directly interacts with iptables, ipvs and ipsets.
-  
-  **proxier** has no business logic and acts as an adapter for **IpvsController** interaction with the **networking layer**.
 
-  
-  
-
+  **proxier** has no business logic and acts as an adapter for **IpvsController** interaction with the **networking
+  layer**.
 
 ## 2. Callback, Prepare diffs [ What to do? ]
+
 - **types.go**
 
-  ```ServicePortInfo``` Contains base information of a service in a structure that can be directly consumed by the proxier
-  
-  ```EndpointInfo``` Contains base information of an endpoint in a structure that can be directly consumed by the proxier
+  ```ServicePortInfo``` Contains base information of a service in a structure that can be directly consumed by the
+  proxier
 
-  ```ResourceInfo``` Is used by generic functions 
+  ```EndpointInfo``` Contains base information of an endpoint in a structure that can be directly consumed by the
+  proxier
+
+  ```ResourceInfo``` Is used by generic functions
   ```go
   type ResourceInfo interface {
       ServicePortInfo | EndpointInfo
@@ -63,7 +67,8 @@ This implementation can be broken down into three major steps.
 
 - **patch.go**
 
-  Here we leverage diffstore to get the deltas for service and endpoints and store them in form of patches. A Patch is basically a combination of resources and operations.
+  Here we leverage diffstore to get the deltas for service and endpoints and store them in form of patches. A Patch is
+  basically a combination of resources and operations.
    ```go
   type Operation int32
   
@@ -75,20 +80,20 @@ This implementation can be broken down into three major steps.
   )
   ```
   The following structures are used to organize a ```client.ServiceEndpoints``` diffs into patches
-  - ServicePatch
+    - ServicePatch
   ```go
   type ServicePatch struct {
         servicePortInfo *ServicePortInfo    
         op          Operation
   }
   ```
-  
+
   ```go
   func (p *ServicePatch) apply(handler map[Operation]func(servicePortInfo *ServicePortInfo)) {
         handler[p.op](p.servicePortInfo)
   }
   ```
-  - EndpointPatch
+    - EndpointPatch
   ```go
   type EndpointPatch struct {
         endpointInfo *EndpointInfo
@@ -101,7 +106,7 @@ This implementation can be broken down into three major steps.
         handler[p.op](p.endpointInfo, p.servicePortInfo)
   }
   ```
-  - EndpointPatches
+    - EndpointPatches
   ```go
   type EndpointPatches []EndpointPatch
   ```
@@ -112,7 +117,7 @@ This implementation can be broken down into three major steps.
         }
   }
   ```
-  - PatchGroup
+    - PatchGroup
   ```go
   type PatchGroup struct {
         svc ServicePatch
@@ -120,15 +125,20 @@ This implementation can be broken down into three major steps.
   }
   ```
 
-PatchGroups basically couples **all mutually dependent patches together**. Thus all the PatchGroups are mutually exclusivce and can be applied in parallel in future.
+PatchGroups basically couples **all mutually dependent patches together**. Thus all the PatchGroups are mutually
+exclusivce and can be applied in parallel in future.
+
 - **ipvs.go**
 
-  ```generatePatchGroups()``` returns the list of PatchGroups required to transition ```client.ServiceEndpoints``` from state A to state B.
+  ```generatePatchGroups()``` returns the list of PatchGroups required to transition ```client.ServiceEndpoints``` from
+  state A to state B.
 
 ## 3. Implementation, Execute diffs [How to do?]
+
 - **(clusterip | nodeport | loadbalacer)_handler.go**
 
   handlers directly interact with the proxier to implement the network patches
+
 ```go
 type Handler interface {
 	createService(*ServicePortInfo)
@@ -145,8 +155,10 @@ type Handler interface {
 }
 ```
 
-  ```getServiceHandlers()``` and ```getEndpointHandlers()``` of the ```Handler``` interface returns sets of functions that actually implement the low-level networking logic and interact with kernel.
+```getServiceHandlers()``` and ```getEndpointHandlers()``` of the ```Handler``` interface returns sets of functions that
+actually implement the low-level networking logic and interact with kernel.
 
 - **patch.go**
 
-  The ```apply()``` methods of the patches takes ```getServiceHandlers()``` and ```getEndpointHandlers()``` **dependency as an argument** to apply the change in the networking stack.
+  The ```apply()``` methods of the patches takes ```getServiceHandlers()``` and ```getEndpointHandlers()``` **dependency
+  as an argument** to apply the change in the networking stack.

@@ -46,17 +46,7 @@ func (lb ipvsLB) String() string {
 	return string(ba)
 }
 
-func (lb ipvsLB) ToService() IPVS.Service {
-	var port uint16
-	if lb.ServiceType == ClusterIPService {
-		port = lb.Port
-	}
-	if lb.ServiceType == NodePortService {
-		port = lb.NodePort
-	}
-	if lb.ServiceType == LoadBalancerService {
-		port = lb.Port
-	}
+func (lb ipvsLB) ToService(port uint16) IPVS.Service {
 	s := IPVS.Service{
 		Address:   net.ParseIP(lb.IP),
 		Port:      port,

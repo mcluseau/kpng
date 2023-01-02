@@ -1,4 +1,5 @@
 # Initialization
+
 ## Kernel Parameters
 
 | Parameter                             |                                                                              Description                                                                              |    Value |
@@ -12,13 +13,18 @@
 ## Kernel Version > 4.1
 
 ## Dummy Interface [kube-ipvs0]
+
 ## IPSets and IPTables
-IPVS handles load balancing but can't take care of other workarounds in Kube Proxy such as packet filtering, hairpin masquerading etc.
 
-IPVS Proxier leverage IPTables to achieve these workarounds, and proxier implements IPSets to prevent bombarding IPTables with all the rules.  
+IPVS handles load balancing but can't take care of other workarounds in Kube Proxy such as packet filtering, hairpin
+masquerading etc.
+
+IPVS Proxier leverage IPTables to achieve these workarounds, and proxier implements IPSets to prevent bombarding
+IPTables with all the rules.
+
 ### IPSets
-[*Information on IPSet Types](https://ipset.netfilter.org/ipset.man.html#SET%20TYPES:~:text=foo%20hash%3Aip%20forceadd-,SET%20TYPES,-bitmap%3Aip)
 
+[*Information on IPSet Types](https://ipset.netfilter.org/ipset.man.html#SET%20TYPES:~:text=foo%20hash%3Aip%20forceadd-,SET%20TYPES,-bitmap%3Aip)
 
 | Name                           |                        Description                        |             Type |
 |--------------------------------|:---------------------------------------------------------:|-----------------:|
@@ -39,9 +45,7 @@ IPVS Proxier leverage IPTables to achieve these workarounds, and proxier impleme
 | KUBE-NODE-PORT-LOCAL-SCTP-HASH | SCTP NodePort Service Ports (externalTrafficPolicy=local) |     hash:ip,port |
 | KUBE-HEALTH-CHECK-NODE-PORT    |                            ??                             |      bitmap:port |
 
-
-
-### IPTable rules with IPSets 
+### IPTable rules with IPSets
 
 | IPSET                          |           Chain           |             Target |                                                                   Purpose | 
 |--------------------------------|:-------------------------:|-------------------:|--------------------------------------------------------------------------:|
@@ -62,46 +66,55 @@ IPVS Proxier leverage IPTables to achieve these workarounds, and proxier impleme
 | KUBE-NODE-PORT-LOCAL-SCTP-HASH | KUBE-NODE-PORT-SCTP-LOCAL |     KUBE-MARK-MASQ | accept packets to NodePort Service(SCTP) with externalTrafficPolicy=local |
 | KUBE-HEALTH-CHECK-NODE-PORT    |            ??             |                 ?? |                                                                        ?? |
 
-
 # Handling
 
 ## ClusterIP
 
 ### CreateService
+
 1. Create IPVS virtual server for ClusterIP
 2. Add ClusterIP to kubeClusterIPSet
 3. Add ClusterIP to KubeIPVS interface
+4. Create IPVS virtual server for ExternalIP if exists
+5. Add ExternalIP to kubeExternalIPSet
 
 ### CreateEndpoint
+
 1. Add EndpointIP(real server) to IPVS virtual server for ClusterIP
 2. Add EndpointIP to kubeLoopBackIPSet if endpoint is local
 
 ### DeleteService
+
 1. Remove ClusterIP from KubeIPVS interface
 2. Remove ClusterIP from kubeClusterIPSet
 3. Delete IPVS virtual server for ClusterIP
+4. Remove ClusterIP from kubeExternalIPSet 
+5. Delete IPVS virtual server for ExternalIP
 
 ### DeleteEndpoint
+
 1. Remove EndpointIP from kubeLoopBackIPSet if endpoint is local
 2. Remove EndpointIP(real server) from IPVS virtual server for ClusterIP
 
 ## NodePort
 
 ### CreateService
+
 1. Create IPVS virtual server for ClusterIP
 2. Add ClusterIP to kubeClusterIPSet
 3. Add ClusterIP to KubeIPVS interface
-4. Create IPVS virtual server for NodeIPs
-5. Add NodePort to KubeNodePortTCPSet or KubeNodePortUDPSet in case of TCP and UDP protocol respectively; 
+4. Create IPVS virtual server for NodeIPs 
+5. Add NodePort to KubeNodePortTCPSet or KubeNodePortUDPSet in case of TCP and UDP protocol respectively;
    Add NodeIP and NodePort to KubeNodePortSCTPSet in case of SCTP protocol
 
 ### CreateEndpoint
+
 1. Add EndpointIP(real server) to IPVS virtual server for ClusterIP
 2. Add EndpointIP(real server) to IPVS virtual server for NodeIPs
 3. Add EndpointIP to kubeLoopBackIPSet if endpoint is local
 
-
 ### DeleteService
+
 1. Remove NodePort from KubeNodePortTCPSet or KubeNodePortUDPSet in case of TCP and UDP protocol respectively;
    Remove NodeIP and NodePort from KubeNodePortSCTPSet in case of SCTP protocol
 2. Delete IPVS virtual server for NodeIPs
@@ -110,6 +123,7 @@ IPVS Proxier leverage IPTables to achieve these workarounds, and proxier impleme
 5. Delete IPVS virtual server for ClusterIP
 
 ### DeleteEndpoint
+
 1. Remove EndpointIP from kubeLoopBackIPSet if endpoint is local
 2. Remove EndpointIP(real server) to IPVS virtual server for NodeIPs
 3. Remove EndpointIP(real server) from IPVS virtual server for ClusterIP

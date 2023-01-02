@@ -9,9 +9,17 @@ import (
 // these functions will be called by the objects which implement Handler interface only
 
 func getIPSetEntryForClusterIP(srcAddr string, servicePortInfo *ServicePortInfo) *ipsetutil.Entry {
+	return getIPSetEntryForIP(srcAddr, servicePortInfo, servicePortInfo.GetClusterIP())
+}
+
+func getIPSetEntryForExternalIP(srcAddr string, servicePortInfo *ServicePortInfo) *ipsetutil.Entry {
+	return getIPSetEntryForIP(srcAddr, servicePortInfo, servicePortInfo.GetExternalIP())
+}
+
+func getIPSetEntryForIP(srcAddr string, servicePortInfo *ServicePortInfo, ip string) *ipsetutil.Entry {
 	if srcAddr != "" {
 		return &ipsetutil.Entry{
-			IP:       servicePortInfo.GetIP(),
+			IP:       ip,
 			Port:     int(servicePortInfo.Port()),
 			Protocol: strings.ToLower(servicePortInfo.Protocol().String()),
 			SetType:  ipsetutil.HashIPPort,
@@ -19,7 +27,7 @@ func getIPSetEntryForClusterIP(srcAddr string, servicePortInfo *ServicePortInfo)
 		}
 	}
 	return &ipsetutil.Entry{
-		IP:       servicePortInfo.GetIP(),
+		IP:       ip,
 		Port:     int(servicePortInfo.Port()),
 		Protocol: strings.ToLower(servicePortInfo.Protocol().String()),
 		SetType:  ipsetutil.HashIPPort,

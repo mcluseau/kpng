@@ -107,6 +107,23 @@ func getLoadBalancerIPByFamily(ipFamily v1.IPFamily, service *localv1.Service) s
 	return ""
 }
 
+// getExternalIPByFamily returns a service clusterIP by family
+func getExternalIPByFamily(ipFamily v1.IPFamily, service *localv1.Service) string {
+	if service.IPs.ExternalIPs != nil {
+		if ipFamily == v1.IPv4Protocol {
+			if len(service.IPs.ExternalIPs.V4) > 0 {
+				return service.IPs.ExternalIPs.V4[0]
+			}
+		}
+		if ipFamily == v1.IPv6Protocol {
+			if len(service.IPs.ExternalIPs.V6) > 0 {
+				return service.IPs.ExternalIPs.V6[0]
+			}
+		}
+	}
+	return ""
+}
+
 // getIPFilterTargetIpsAndSourceRanges returns a service clusterIP by family
 func getIPFilterTargetIpsAndSourceRanges(ipFamily v1.IPFamily, service *localv1.Service) ([]string, []string) {
 	targetIps := make([]string, 0)

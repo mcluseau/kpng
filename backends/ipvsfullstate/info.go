@@ -11,18 +11,21 @@ func NewServicePortInfo(service *localv1.Service, port *localv1.PortMapping, sch
 
 	clusterIP := getClusterIPByFamily(v1.IPv4Protocol, service)
 	lbIP := getLoadBalancerIPByFamily(v1.IPv4Protocol, service)
+	externalIp := getLoadBalancerIPByFamily(v1.IPv4Protocol, service)
+
 	serviceType := ServiceType(service.GetType())
 	ipFilterTargetIps, ipFilterSourceRanges := getIPFilterTargetIpsAndSourceRanges(v1.IPv4Protocol, service)
 	return &ServicePortInfo{
 		name:                 service.Name,
 		namespace:            service.Namespace,
 		isNew:                true,
-		ip:                   clusterIP,
-		lbIP:                 lbIP,
-		port:                 port.Port,
-		targetPort:           port.TargetPort,
+		clusterIP:            clusterIP,
+		loadbalancerIP:       lbIP,
+		externalIP:           externalIp,
+		port:                 uint16(port.Port),
+		targetPort:           uint16(port.TargetPort),
 		targetPortName:       port.Name,
-		nodePort:             port.NodePort,
+		nodePort:             uint16(port.NodePort),
 		protocol:             port.Protocol,
 		schedulingMethod:     schedulingMethod,
 		weight:               weight,
@@ -40,8 +43,9 @@ func (b *ServicePortInfo) Clone() *ServicePortInfo {
 	return &ServicePortInfo{
 		name:                 b.name,
 		namespace:            b.namespace,
-		ip:                   b.ip,
-		lbIP:                 b.lbIP,
+		clusterIP:            b.clusterIP,
+		loadbalancerIP:       b.loadbalancerIP,
+		externalIP:           b.externalIP,
 		port:                 b.port,
 		targetPort:           b.targetPort,
 		targetPortName:       b.targetPortName,
@@ -63,28 +67,33 @@ func (b *ServicePortInfo) NamespacedName() string {
 	return b.namespace + "/" + b.name
 }
 
-// GetIP returns service ip
-func (b *ServicePortInfo) GetIP() string {
-	return b.ip
+// GetClusterIP returns service ip
+func (b *ServicePortInfo) GetClusterIP() string {
+	return b.clusterIP
 }
 
-// LoadBalancerIP returns service LB ip
-func (b *ServicePortInfo) LoadBalancerIP() string {
-	return b.lbIP
+// GetLoadBalancerIP returns service LB ip
+func (b *ServicePortInfo) GetLoadBalancerIP() string {
+	return b.loadbalancerIP
+}
+
+// GetExternalIP returns service LB ip
+func (b *ServicePortInfo) GetExternalIP() string {
+	return b.externalIP
 }
 
 // Port return service port
-func (b *ServicePortInfo) Port() int32 {
+func (b *ServicePortInfo) Port() uint16 {
 	return b.port
 }
 
 // NodePort return service node port
-func (b *ServicePortInfo) NodePort() int32 {
+func (b *ServicePortInfo) NodePort() uint16 {
 	return b.nodePort
 }
 
 // TargetPort return service target port
-func (b *ServicePortInfo) TargetPort() int32 {
+func (b *ServicePortInfo) TargetPort() uint16 {
 	return b.targetPort
 }
 
@@ -99,9 +108,9 @@ func (b *ServicePortInfo) Protocol() localv1.Protocol {
 }
 
 // GetVirtualServer return IPVS LB object
-func (b *ServicePortInfo) GetVirtualServer() ipvsLB {
+func (b *ServicePortInfo) GetVirtualServer(IP string) ipvsLB {
 	vs := ipvsLB{
-		IP:               b.ip,
+		IP:               IP,
 		SchedulingMethod: b.schedulingMethod,
 		ServiceType:      b.serviceType,
 		Port:             uint16(b.port),
@@ -116,11 +125,6 @@ func (b *ServicePortInfo) GetVirtualServer() ipvsLB {
 	return vs
 }
 
-// SetIP update IP of ServicePortInfo
-func (b *ServicePortInfo) SetIP(IP string) {
-	b.ip = IP
-}
-
 // ToBytes returns ServicePortInfo as []byte
 func (b *ServicePortInfo) ToBytes() []byte {
 	data := ""
@@ -128,7 +132,7 @@ func (b *ServicePortInfo) ToBytes() []byte {
 	data += b.name + Delimiter + b.namespace + Delimiter
 
 	// ips
-	data += b.ip + Delimiter + b.lbIP + Delimiter
+	data += b.clusterIP + Delimiter + b.loadbalancerIP + Delimiter + b.externalIP + Delimiter
 
 	// ports
 	data += string(b.port) + Delimiter + string(b.targetPort) + Delimiter + string(b.nodePort) + Delimiter

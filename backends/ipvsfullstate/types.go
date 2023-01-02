@@ -78,7 +78,7 @@ type EndpointInfo struct {
 	ip      string
 	isNew   bool
 	isLocal bool
-	portMap map[string]int32
+	portMap map[string]uint16
 }
 
 // ServicePortInfo contains base information of a service in a structure that can be directly consumed by the proxier
@@ -86,13 +86,14 @@ type ServicePortInfo struct {
 	name                  string
 	namespace             string
 	isNew                 bool
-	ip                    string
-	lbIP                  string
+	clusterIP             string
+	loadbalancerIP        string
+	externalIP            string
 	serviceType           ServiceType
-	port                  int32
-	targetPort            int32
+	port                  uint16
+	targetPort            uint16
 	targetPortName        string
-	nodePort              int32
+	nodePort              uint16
 	protocol              localv1.Protocol
 	schedulingMethod      string
 	weight                int32
