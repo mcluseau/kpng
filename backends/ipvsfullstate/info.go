@@ -163,12 +163,18 @@ func (b *ServicePortInfo) ToBytes() []byte {
 }
 
 func NewEndpointInfo(svcKey string, endpointIP string, endpoint *localv1.Endpoint) *EndpointInfo {
-	return &EndpointInfo{
+	endpointInfo := &EndpointInfo{
 		svcKey:  svcKey,
 		isNew:   true,
 		ip:      endpointIP,
 		isLocal: endpoint.GetLocal(),
+		portMap: make(map[string]uint16),
 	}
+	for _, port := range endpoint.PortOverrides {
+		endpointInfo.portMap[port.Name] = uint16(port.Port)
+	}
+
+	return endpointInfo
 }
 
 func (e *EndpointInfo) GetIP() string {

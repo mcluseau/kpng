@@ -82,6 +82,7 @@ IPTables with all the rules.
 
 1. Add EndpointIP(real server) to IPVS virtual server for ClusterIP
 2. Add EndpointIP to kubeLoopBackIPSet if endpoint is local
+3. Add EndpointIP(real server) to IPVS virtual server for ExternalIP
 
 ### DeleteService
 
@@ -92,9 +93,9 @@ IPTables with all the rules.
 5. Delete IPVS virtual server for ExternalIP
 
 ### DeleteEndpoint
-
-1. Remove EndpointIP from kubeLoopBackIPSet if endpoint is local
-2. Remove EndpointIP(real server) from IPVS virtual server for ClusterIP
+1. Remove EndpointIP(real server) from IPVS virtual server for ExternalIP
+2. Remove EndpointIP from kubeLoopBackIPSet if endpoint is local
+3. Remove EndpointIP(real server) from IPVS virtual server for ClusterIP
 
 ## NodePort
 

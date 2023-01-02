@@ -74,7 +74,7 @@ func ipvsDestination(endpointInfo EndpointInfo, servicePortInfo *ServicePortInfo
 	}
 	return IPVS.Destination{
 		Address: net.ParseIP(endpointInfo.GetIP()),
-		Port:    uint16(targetPort),
+		Port:    targetPort,
 		Weight:  servicePortInfo.weight,
 	}
 }

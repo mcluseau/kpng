@@ -39,13 +39,19 @@ func (h *ClusterIPHandler) createService(servicePortInfo *ServicePortInfo) {
 }
 
 func (h *ClusterIPHandler) createEndpoint(endpointInfo *EndpointInfo, servicePortInfo *ServicePortInfo) {
-	// 1. add EndpointIP to IPVS Load Balancer
+	// 1. add EndpointIP to IPVS Load Balancer for ClusterIP
 	h.proxier.addRealServerForClusterIP(servicePortInfo, endpointInfo)
 
 	if endpointInfo.isLocal {
 		// 2. add Endpoint IP to kubeLoopBackIPSet IPSET if endpoint is local
 		entry := getIPSetEntryForEndPoint(endpointInfo, servicePortInfo)
 		h.proxier.addEntryInIPSet(entry, h.proxier.ipsetList[kubeLoopBackIPSet])
+	}
+
+	// if service has an external IP
+	if servicePortInfo.GetExternalIP() != "" {
+		// 3. add EndpointIP to IPVS Load Balancer for ExternalIP
+		h.proxier.addRealServerForExternalIP(servicePortInfo, endpointInfo)
 	}
 }
 
@@ -83,15 +89,21 @@ func (h *ClusterIPHandler) deleteService(servicePortInfo *ServicePortInfo) {
 }
 
 func (h *ClusterIPHandler) deleteEndpoint(endpointInfo *EndpointInfo, servicePortInfo *ServicePortInfo) {
+
+	// if service has an external IP
+	if servicePortInfo.GetExternalIP() != "" {
+		// 3. remove EndpointIP from IPVS Load Balancer for ExternalIP
+		h.proxier.deleteRealServerForExternalIP(servicePortInfo, endpointInfo)
+	}
+
 	if endpointInfo.isLocal {
-		// 1. remove EndpointIP from kubeLoopBackIPSet IPSET if endpoint is local
+		// 2. remove EndpointIP from kubeLoopBackIPSet IPSET if endpoint is local
 		entry := getIPSetEntryForEndPoint(endpointInfo, servicePortInfo)
 		h.proxier.removeEntryFromIPSet(entry, h.proxier.ipsetList[kubeLoopBackIPSet])
 	}
 
-	// 2. remove EndpointIP from IPVS Load Balancer
+	// 3. remove EndpointIP from IPVS Load Balancer for ClusterIP
 	h.proxier.deleteRealServerForClusterIP(servicePortInfo, endpointInfo)
-
 }
 
 func (h *ClusterIPHandler) getServiceHandlers() map[Operation]func(*ServicePortInfo) {

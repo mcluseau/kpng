@@ -241,6 +241,10 @@ func (p *proxier) addRealServerForClusterIP(servicePortInfo *ServicePortInfo, en
 	p.addRealServer(servicePortInfo, endpointInfo, servicePortInfo.GetClusterIP(), servicePortInfo.Port())
 }
 
+func (p *proxier) addRealServerForExternalIP(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
+	p.addRealServer(servicePortInfo, endpointInfo, servicePortInfo.GetExternalIP(), servicePortInfo.Port())
+}
+
 func (p *proxier) addRealServerForNodeIPs(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
 	for _, nodeIP := range p.nodeAddresses {
 		p.addRealServer(servicePortInfo, endpointInfo, nodeIP, servicePortInfo.NodePort())
@@ -260,6 +264,10 @@ func (p *proxier) addRealServer(servicePortInfo *ServicePortInfo, endpointInfo *
 
 func (p *proxier) deleteRealServerForClusterIP(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
 	p.deleteRealServer(servicePortInfo, endpointInfo, servicePortInfo.GetClusterIP(), servicePortInfo.Port())
+}
+
+func (p *proxier) deleteRealServerForExternalIP(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
+	p.deleteRealServer(servicePortInfo, endpointInfo, servicePortInfo.GetExternalIP(), servicePortInfo.Port())
 }
 
 func (p *proxier) deleteRealServerForNodeIPs(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
