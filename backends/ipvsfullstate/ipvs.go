@@ -81,9 +81,6 @@ func (c *IpvsController) Callback(ch <-chan *client.ServiceEndpoints) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	//// reusable flag for ServicePortInfo and EndpointInfo
-	//isNew := false
-
 	// for tracking time
 	st := time.Now()
 
@@ -116,14 +113,6 @@ func (c *IpvsController) Callback(ch <-chan *client.ServiceEndpoints) {
 
 					// generate endpoint; key format: [service key + endpoint ip]
 					epKey := getEpKey(svcKey, endpointIP)
-
-					// check if new or existing endpoint
-					//  lookup diffstore to check if endpoint is new or old, this will be used to
-					// distinguish between Create and Update Operation
-					//isNew = false
-					//if len(c.epStore.GetByPrefix([]byte(epKey))) == 0 {
-					//	isNew = true
-					//}
 
 					// EndpointInfo, can be directly consumed by proxier
 					endpointInfo := NewEndpointInfo(svcKey, endpointIP, endpoint)

@@ -15,18 +15,19 @@ func newNodePortHandler(proxier *proxier) *NodePortHandler {
 
 func (h *NodePortHandler) createService(servicePortInfo *ServicePortInfo) {
 	var entry *ipsetutil.Entry
+	var entries []*ipsetutil.Entry
 
 	// ClusterIP operations for NodePort Service
 
 	// 1. create IPVS Virtual Server for ClusterIP
-	h.proxier.createVirtualServerForClusterIP(servicePortInfo)
+	h.proxier.createVirtualServerForClusterIPs(servicePortInfo)
 
 	// 2. add ClusterIP entry to kubeClusterIPSet
-	entry = getIPSetEntryForClusterIP("", servicePortInfo)
-	h.proxier.addEntryInIPSet(entry, h.proxier.ipsetList[kubeClusterIPSet])
+	entries = getIPSetEntriesForClusterIP("", servicePortInfo)
+	h.proxier.addEntriesToIPSet(entries, h.proxier.ipsetList[kubeClusterIPSet])
 
 	// 3. add ClusterIP to IPVS Interface
-	h.proxier.addIPToIPVSInterface(servicePortInfo.GetClusterIP())
+	h.proxier.addIPsToIPVSInterface(servicePortInfo.GetClusterIPs())
 
 	// Node Port Specific operations
 
@@ -34,7 +35,6 @@ func (h *NodePortHandler) createService(servicePortInfo *ServicePortInfo) {
 	h.proxier.createVirtualServerForNodeIPs(servicePortInfo)
 
 	// pick IPSET based on protocol of service
-	var entries []*ipsetutil.Entry
 	protocol := strings.ToLower(servicePortInfo.Protocol().String())
 	ipSetName := protocolIPSetMap[protocol]
 	set := h.proxier.ipsetList[ipSetName]
@@ -61,11 +61,10 @@ func (h *NodePortHandler) createService(servicePortInfo *ServicePortInfo) {
 }
 
 func (h *NodePortHandler) createEndpoint(endpointInfo *EndpointInfo, servicePortInfo *ServicePortInfo) {
-
 	// ClusterIP operations for NodePort Service
 
 	// 1. add EndpointIP to IPVS Load Balancer[ClusterIP]
-	h.proxier.addRealServerForClusterIP(servicePortInfo, endpointInfo)
+	h.proxier.addRealServerForClusterIPs(servicePortInfo, endpointInfo)
 
 	if endpointInfo.isLocal {
 		// 2. add Endpoint IP to kubeLoopBackIPSet IPSET if endpoint is local
@@ -78,13 +77,6 @@ func (h *NodePortHandler) createEndpoint(endpointInfo *EndpointInfo, servicePort
 	// 3. add EndpointIP to IPVS Load Balancer[NodeIP(s)]
 	h.proxier.addRealServerForNodeIPs(servicePortInfo, endpointInfo)
 
-	//if endpointInfo.isLocal {
-	//	// 4. add Endpoint IP to kubeLoopBackIPSet IPSET if endpoint is local
-	//	for _, nodeServicePortInfo := range nodeServicePortInfos {
-	//		entry := getIPSetEntryForEndPoint(endpointInfo, nodeServicePortInfo)
-	//		h.proxier.addEntryInIPSet(entry, h.proxier.ipsetList[kubeLoopBackIPSet])
-	//	}
-	//}
 }
 
 // TODO what to do here ?
@@ -99,15 +91,16 @@ func (h *NodePortHandler) updateEndpoint(endpointInfo *EndpointInfo, servicePort
 
 func (h *NodePortHandler) deleteService(servicePortInfo *ServicePortInfo) {
 	var entry *ipsetutil.Entry
+	var entries []*ipsetutil.Entry
 
 	// ClusterIP operations for NodePort Service
 
 	// 1. remove clusterIP from IPVS Interface
-	h.proxier.removeIPFromIPVSInterface(servicePortInfo.GetClusterIP())
+	h.proxier.removeIPsFromIPVSInterface(servicePortInfo.GetClusterIPs())
 
 	// 2. remove ClusterIP entry from kubeClusterIPSet
-	entry = getIPSetEntryForClusterIP("", servicePortInfo)
-	h.proxier.removeEntryFromIPSet(entry, h.proxier.ipsetList[kubeClusterIPSet])
+	entries = getIPSetEntriesForClusterIP("", servicePortInfo)
+	h.proxier.removeEntriesFromIPSet(entries, h.proxier.ipsetList[kubeClusterIPSet])
 
 	// 3. delete IPVS Virtual Server
 	h.proxier.deleteVirtualServerForClusterIP(servicePortInfo)
@@ -115,7 +108,6 @@ func (h *NodePortHandler) deleteService(servicePortInfo *ServicePortInfo) {
 	// Node Port Specific operations
 
 	// pick IPSET based on protocol of service
-	var entries []*ipsetutil.Entry
 	protocol := strings.ToLower(servicePortInfo.Protocol().String())
 	ipSetName := protocolIPSetMap[protocol]
 	set := h.proxier.ipsetList[ipSetName]
@@ -137,9 +129,7 @@ func (h *NodePortHandler) deleteService(servicePortInfo *ServicePortInfo) {
 	}
 
 	// 4. Remove entries from relevant IPSET
-	for _, entry = range entries {
-		h.proxier.removeEntryFromIPSet(entry, set)
-	}
+	h.proxier.removeEntriesFromIPSet(entries, set)
 
 	// 5. delete IPVS Virtual Server all nodeIPs
 	h.proxier.deleteVirtualServerForNodeIPs(servicePortInfo)
@@ -156,7 +146,7 @@ func (h *NodePortHandler) deleteEndpoint(endpointInfo *EndpointInfo, servicePort
 	}
 
 	// 2. remove EndpointIP from IPVS Load Balancer
-	h.proxier.deleteRealServerForClusterIP(servicePortInfo, endpointInfo)
+	h.proxier.deleteRealServerForClusterIPs(servicePortInfo, endpointInfo)
 
 	// Node Port Specific operations
 	//if endpointInfo.isLocal {

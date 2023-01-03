@@ -19,7 +19,6 @@ package ipvsfullsate
 import (
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/kpng/api/localv1"
-	"sigs.k8s.io/kpng/client/serviceevents"
 )
 
 // Operation which can be done on ServicePortInfo and EndpointInfo
@@ -72,11 +71,15 @@ type ResourceInfo interface {
 	ToBytes() []byte
 }
 
+// SessionAffinity contains data about assigned session affinity
+type SessionAffinity struct {
+	ClientIP *localv1.Service_ClientIP
+}
+
 // EndpointInfo contains base information of an endpoint in a structure that can be directly consumed by the proxier
 type EndpointInfo struct {
 	svcKey  string
 	ip      string
-	isNew   bool
 	isLocal bool
 	portMap map[string]uint16
 }
@@ -85,10 +88,9 @@ type EndpointInfo struct {
 type ServicePortInfo struct {
 	name                  string
 	namespace             string
-	isNew                 bool
-	clusterIP             string
-	loadbalancerIP        string
-	externalIP            string
+	clusterIPs            []string
+	loadbalancerIPs       []string
+	externalIPs           []string
 	serviceType           ServiceType
 	port                  uint16
 	targetPort            uint16
@@ -97,8 +99,7 @@ type ServicePortInfo struct {
 	protocol              localv1.Protocol
 	schedulingMethod      string
 	weight                int32
-	sessionAffinity       serviceevents.SessionAffinity
-	stickyMaxAgeSeconds   int
+	sessionAffinity       SessionAffinity
 	healthCheckNodePort   int
 	nodeLocalExternal     bool
 	nodeLocalInternal     bool

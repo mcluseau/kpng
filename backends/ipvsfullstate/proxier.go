@@ -18,7 +18,7 @@ package ipvsfullsate
 
 import (
 	"bytes"
-	"github.com/google/seesaw/ipvs"
+	IPVS "github.com/google/seesaw/ipvs"
 	"net"
 	"strings"
 
@@ -117,6 +117,12 @@ func (p *proxier) initializeIPSets() {
 	}
 }
 
+func (p *proxier) addIPsToIPVSInterface(IPs []string) {
+	for _, ip := range IPs {
+		p.addIPToIPVSInterface(ip)
+	}
+}
+
 func (p *proxier) addIPToIPVSInterface(IP string) {
 	ipFamily := getIPFamily(IP)
 
@@ -135,6 +141,12 @@ func (p *proxier) addIPToIPVSInterface(IP string) {
 	klog.V(2).Info("adding dummy ip ", ip)
 	if err = netlink.AddrAdd(p.dummy, &netlink.Addr{IPNet: ipNet}); err != nil {
 		klog.Error("failed to add dummy ip ", ip, ": ", err)
+	}
+}
+
+func (p *proxier) removeIPsFromIPVSInterface(IPs []string) {
+	for _, ip := range IPs {
+		p.removeIPFromIPVSInterface(ip)
 	}
 }
 
@@ -161,12 +173,16 @@ func (p *proxier) removeIPFromIPVSInterface(serviceIP string) {
 	}
 }
 
-func (p *proxier) createVirtualServerForClusterIP(servicePortInfo *ServicePortInfo) {
-	p.createVirtualServer(servicePortInfo, servicePortInfo.GetClusterIP(), servicePortInfo.Port())
+func (p *proxier) createVirtualServerForClusterIPs(servicePortInfo *ServicePortInfo) {
+	for _, ip := range servicePortInfo.GetClusterIPs() {
+		p.createVirtualServer(servicePortInfo, ip, servicePortInfo.Port())
+	}
 }
 
 func (p *proxier) createVirtualServerForExternalIP(servicePortInfo *ServicePortInfo) {
-	p.createVirtualServer(servicePortInfo, servicePortInfo.GetExternalIP(), servicePortInfo.Port())
+	for _, ip := range servicePortInfo.GetExternalIPs() {
+		p.createVirtualServer(servicePortInfo, ip, servicePortInfo.Port())
+	}
 }
 
 func (p *proxier) createVirtualServerForNodeIPs(servicePortInfo *ServicePortInfo) {
@@ -181,18 +197,22 @@ func (p *proxier) createVirtualServer(servicePortInfo *ServicePortInfo, virtualS
 	klog.V(2).Infof("adding AddVirtualServer: port: %v", servicePortInfo)
 	// Programme virtual-server directly
 	ipvsSvc := vs.ToService(port)
-	err := ipvs.AddService(ipvsSvc)
+	err := IPVS.AddService(ipvsSvc)
 	if err != nil && !strings.HasSuffix(err.Error(), "object exists") {
 		klog.Error("failed to add service in IPVS", ": ", err)
 	}
 }
 
 func (p *proxier) deleteVirtualServerForClusterIP(servicePortInfo *ServicePortInfo) {
-	p.deleteVirtualServer(servicePortInfo, servicePortInfo.GetClusterIP(), servicePortInfo.Port())
+	for _, ip := range servicePortInfo.GetClusterIPs() {
+		p.deleteVirtualServer(servicePortInfo, ip, servicePortInfo.Port())
+	}
 }
 
 func (p *proxier) deleteVirtualServerForExternalIP(servicePortInfo *ServicePortInfo) {
-	p.deleteVirtualServer(servicePortInfo, servicePortInfo.GetExternalIP(), servicePortInfo.Port())
+	for _, ip := range servicePortInfo.GetExternalIPs() {
+		p.deleteVirtualServer(servicePortInfo, ip, servicePortInfo.Port())
+	}
 }
 
 func (p *proxier) deleteVirtualServerForNodeIPs(servicePortInfo *ServicePortInfo) {
@@ -203,9 +223,15 @@ func (p *proxier) deleteVirtualServerForNodeIPs(servicePortInfo *ServicePortInfo
 
 func (p *proxier) deleteVirtualServer(servicePortInfo *ServicePortInfo, virtualServerIP string, port uint16) {
 	klog.V(2).Infof("deleting service , IP (%v) , port (%v)", virtualServerIP, port)
-	err := ipvs.DeleteService(servicePortInfo.GetVirtualServer(virtualServerIP).ToService(port))
+	err := IPVS.DeleteService(servicePortInfo.GetVirtualServer(virtualServerIP).ToService(port))
 	if err != nil {
 		klog.Error("failed to delete service from IPVS", virtualServerIP, ": ", err)
+	}
+}
+
+func (p *proxier) addEntriesToIPSet(entries []*ipsetutil.Entry, set *IPSet) {
+	for _, entry := range entries {
+		p.addEntryInIPSet(entry, set)
 	}
 }
 
@@ -223,6 +249,12 @@ func (p *proxier) addEntryInIPSet(entry *ipsetutil.Entry, set *IPSet) {
 
 }
 
+func (p *proxier) removeEntriesFromIPSet(entries []*ipsetutil.Entry, set *IPSet) {
+	for _, entry := range entries {
+		p.removeEntryFromIPSet(entry, set)
+	}
+}
+
 func (p *proxier) removeEntryFromIPSet(entry *ipsetutil.Entry, set *IPSet) {
 	if valid := set.validateEntry(entry); !valid {
 		klog.Errorf("error adding entry to ipset. entry:%s, ipset:%s", entry.String(), set.Name)
@@ -237,12 +269,16 @@ func (p *proxier) removeEntryFromIPSet(entry *ipsetutil.Entry, set *IPSet) {
 
 }
 
-func (p *proxier) addRealServerForClusterIP(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
-	p.addRealServer(servicePortInfo, endpointInfo, servicePortInfo.GetClusterIP(), servicePortInfo.Port())
+func (p *proxier) addRealServerForClusterIPs(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
+	for _, ip := range servicePortInfo.GetClusterIPs() {
+		p.addRealServer(servicePortInfo, endpointInfo, ip, servicePortInfo.Port())
+	}
 }
 
-func (p *proxier) addRealServerForExternalIP(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
-	p.addRealServer(servicePortInfo, endpointInfo, servicePortInfo.GetExternalIP(), servicePortInfo.Port())
+func (p *proxier) addRealServerForExternalIPs(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
+	for _, ip := range servicePortInfo.GetExternalIPs() {
+		p.addRealServer(servicePortInfo, endpointInfo, ip, servicePortInfo.Port())
+	}
 }
 
 func (p *proxier) addRealServerForNodeIPs(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
@@ -257,17 +293,21 @@ func (p *proxier) addRealServer(servicePortInfo *ServicePortInfo, endpointInfo *
 		Dst: ipvsDestination(*endpointInfo, servicePortInfo),
 	}
 	klog.V(2).Infof("adding destination ep (%v)", endpointInfo.GetIP())
-	if err := ipvs.AddDestination(destination.Svc, destination.Dst); err != nil && !strings.HasSuffix(err.Error(), "object exists") {
+	if err := IPVS.AddDestination(destination.Svc, destination.Dst); err != nil && !strings.HasSuffix(err.Error(), "object exists") {
 		klog.Error("failed to add destination : ", err)
 	}
 }
 
-func (p *proxier) deleteRealServerForClusterIP(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
-	p.deleteRealServer(servicePortInfo, endpointInfo, servicePortInfo.GetClusterIP(), servicePortInfo.Port())
+func (p *proxier) deleteRealServerForClusterIPs(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
+	for _, ip := range servicePortInfo.GetClusterIPs() {
+		p.deleteRealServer(servicePortInfo, endpointInfo, ip, servicePortInfo.Port())
+	}
 }
 
-func (p *proxier) deleteRealServerForExternalIP(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
-	p.deleteRealServer(servicePortInfo, endpointInfo, servicePortInfo.GetExternalIP(), servicePortInfo.Port())
+func (p *proxier) deleteRealServerForExternalIPs(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
+	for _, ip := range servicePortInfo.GetExternalIPs() {
+		p.deleteRealServer(servicePortInfo, endpointInfo, ip, servicePortInfo.Port())
+	}
 }
 
 func (p *proxier) deleteRealServerForNodeIPs(servicePortInfo *ServicePortInfo, endpointInfo *EndpointInfo) {
@@ -286,7 +326,7 @@ func (p *proxier) deleteRealServer(servicePortInfo *ServicePortInfo, endpointInf
 	}
 
 	klog.V(2).Infof("deleting destination : %v", dest)
-	if err := ipvs.DeleteDestination(dest.Svc, dest.Dst); err != nil {
+	if err := IPVS.DeleteDestination(dest.Svc, dest.Dst); err != nil {
 		klog.Error("failed to delete destination ", dest, ": ", err)
 	}
 

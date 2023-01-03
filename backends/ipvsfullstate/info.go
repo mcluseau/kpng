@@ -3,25 +3,20 @@ package ipvsfullsate
 import (
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/kpng/api/localv1"
-	"sigs.k8s.io/kpng/client/serviceevents"
 	"strconv"
 )
 
 func NewServicePortInfo(service *localv1.Service, port *localv1.PortMapping, schedulingMethod string, weight int32) *ServicePortInfo {
 
-	clusterIP := getClusterIPByFamily(v1.IPv4Protocol, service)
-	lbIP := getLoadBalancerIPByFamily(v1.IPv4Protocol, service)
-	externalIp := getLoadBalancerIPByFamily(v1.IPv4Protocol, service)
-
 	serviceType := ServiceType(service.GetType())
 	ipFilterTargetIps, ipFilterSourceRanges := getIPFilterTargetIpsAndSourceRanges(v1.IPv4Protocol, service)
+
 	return &ServicePortInfo{
 		name:                 service.Name,
 		namespace:            service.Namespace,
-		isNew:                true,
-		clusterIP:            clusterIP,
-		loadbalancerIP:       lbIP,
-		externalIP:           externalIp,
+		clusterIPs:           getClusterIPsByFamily(v1.IPv4Protocol, service),
+		loadbalancerIPs:      getLoadBalancerIPsByFamily(v1.IPv4Protocol, service),
+		externalIPs:          getExternalIPsByFamily(v1.IPv4Protocol, service),
 		port:                 uint16(port.Port),
 		targetPort:           uint16(port.TargetPort),
 		targetPortName:       port.Name,
@@ -30,35 +25,11 @@ func NewServicePortInfo(service *localv1.Service, port *localv1.PortMapping, sch
 		schedulingMethod:     schedulingMethod,
 		weight:               weight,
 		serviceType:          serviceType,
-		sessionAffinity:      serviceevents.GetSessionAffinity(service.SessionAffinity),
+		sessionAffinity:      getSessionAffinity(service.SessionAffinity),
 		nodeLocalExternal:    service.GetExternalTrafficToLocal(),
 		nodeLocalInternal:    service.GetInternalTrafficToLocal(),
 		ipFilterTargetIps:    ipFilterTargetIps,
 		ipFilterSourceRanges: ipFilterSourceRanges,
-	}
-}
-
-// Clone creates a deep-copy of ServicePortInfo object
-func (b *ServicePortInfo) Clone() *ServicePortInfo {
-	return &ServicePortInfo{
-		name:                 b.name,
-		namespace:            b.namespace,
-		clusterIP:            b.clusterIP,
-		loadbalancerIP:       b.loadbalancerIP,
-		externalIP:           b.externalIP,
-		port:                 b.port,
-		targetPort:           b.targetPort,
-		targetPortName:       b.targetPortName,
-		nodePort:             b.nodePort,
-		protocol:             b.protocol,
-		schedulingMethod:     b.schedulingMethod,
-		weight:               b.weight,
-		serviceType:          b.serviceType,
-		sessionAffinity:      b.sessionAffinity,
-		nodeLocalExternal:    b.nodeLocalExternal,
-		nodeLocalInternal:    b.nodeLocalInternal,
-		ipFilterTargetIps:    b.ipFilterTargetIps,
-		ipFilterSourceRanges: b.ipFilterSourceRanges,
 	}
 }
 
@@ -67,19 +38,19 @@ func (b *ServicePortInfo) NamespacedName() string {
 	return b.namespace + "/" + b.name
 }
 
-// GetClusterIP returns service ip
-func (b *ServicePortInfo) GetClusterIP() string {
-	return b.clusterIP
+// GetClusterIPs returns service ip
+func (b *ServicePortInfo) GetClusterIPs() []string {
+	return b.clusterIPs
 }
 
-// GetLoadBalancerIP returns service LB ip
-func (b *ServicePortInfo) GetLoadBalancerIP() string {
-	return b.loadbalancerIP
+// GetLoadBalancerIPs returns service LB ip
+func (b *ServicePortInfo) GetLoadBalancerIP() []string {
+	return b.loadbalancerIPs
 }
 
-// GetExternalIP returns service LB ip
-func (b *ServicePortInfo) GetExternalIP() string {
-	return b.externalIP
+// GetExternalIPs returns service LB ip
+func (b *ServicePortInfo) GetExternalIPs() []string {
+	return b.externalIPs
 }
 
 // Port return service port
@@ -113,9 +84,9 @@ func (b *ServicePortInfo) GetVirtualServer(IP string) ipvsLB {
 		IP:               IP,
 		SchedulingMethod: b.schedulingMethod,
 		ServiceType:      b.serviceType,
-		Port:             uint16(b.port),
+		Port:             b.port,
 		Protocol:         b.protocol,
-		NodePort:         uint16(b.nodePort),
+		NodePort:         b.nodePort,
 	}
 
 	if b.sessionAffinity.ClientIP != nil {
@@ -132,10 +103,19 @@ func (b *ServicePortInfo) ToBytes() []byte {
 	data += b.name + Delimiter + b.namespace + Delimiter
 
 	// ips
-	data += b.clusterIP + Delimiter + b.loadbalancerIP + Delimiter + b.externalIP + Delimiter
+	for _, ip := range b.clusterIPs {
+		data += ip + Delimiter
+	}
+	for _, ip := range b.loadbalancerIPs {
+		data += ip + Delimiter
+	}
+	for _, ip := range b.externalIPs {
+		data += ip + Delimiter
+	}
 
 	// ports
-	data += string(b.port) + Delimiter + string(b.targetPort) + Delimiter + string(b.nodePort) + Delimiter
+	data += strconv.Itoa(int(b.port)) + Delimiter + strconv.Itoa(int(b.targetPort))
+	data += Delimiter + strconv.Itoa(int(b.nodePort)) + Delimiter
 
 	// protocol + type
 	data += string(b.protocol) + Delimiter + b.serviceType.String() + Delimiter
@@ -143,7 +123,7 @@ func (b *ServicePortInfo) ToBytes() []byte {
 	// schedulingMethod method + weigh
 	data += b.schedulingMethod + Delimiter + string(b.weight) + Delimiter
 
-	if b.sessionAffinity.ClientIP != nil && b.sessionAffinity.ClientIP.ClientIP != nil {
+	if b.sessionAffinity.ClientIP != nil {
 		data += string(b.sessionAffinity.ClientIP.ClientIP.TimeoutSeconds) + Delimiter
 	} else {
 		data += "nil" + Delimiter
@@ -165,7 +145,6 @@ func (b *ServicePortInfo) ToBytes() []byte {
 func NewEndpointInfo(svcKey string, endpointIP string, endpoint *localv1.Endpoint) *EndpointInfo {
 	endpointInfo := &EndpointInfo{
 		svcKey:  svcKey,
-		isNew:   true,
 		ip:      endpointIP,
 		isLocal: endpoint.GetLocal(),
 		portMap: make(map[string]uint16),

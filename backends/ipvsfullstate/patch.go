@@ -1,5 +1,7 @@
 package ipvsfullsate
 
+import "k8s.io/klog/v2"
+
 // ServicePatch -> ServicePortInfo and Operation
 type ServicePatch struct {
 	servicePortInfo *ServicePortInfo
@@ -60,7 +62,7 @@ func (p *PatchGroup) apply(
 		p.svc.apply(serviceHandler)
 		p.eps.apply(endpointHandler)
 	case Update:
-		p.svc.apply(serviceHandler)
+		klog.Fatal("Update Operation should not exists now")
 	case Delete:
 		// first endpoints; then service
 		p.eps.apply(endpointHandler)
@@ -78,19 +80,10 @@ func (c *IpvsController) generatePatchGroups() []PatchGroup {
 		svcKey := string(KV.Key)
 		servicePortInfo := KV.Value.(ServicePortInfo)
 
-		// isNew flag was added at the time of callback; refer c.Callback
-		if servicePortInfo.isNew {
-			// create new patch group; add service with create operation; initialise endpoints patch
-			patchGroupMap[svcKey] = PatchGroup{
-				ServicePatch{servicePortInfo: &servicePortInfo, op: Create},
-				make([]EndpointPatch, 0),
-			}
-		} else {
-			// create new patch group; add service with update operation; initialise endpoints patch
-			patchGroupMap[svcKey] = PatchGroup{
-				ServicePatch{servicePortInfo: &servicePortInfo, op: Update},
-				make([]EndpointPatch, 0),
-			}
+		// create new patch group; add service with create operation; initialise endpoints patch
+		patchGroupMap[svcKey] = PatchGroup{
+			ServicePatch{servicePortInfo: &servicePortInfo, op: Create},
+			make([]EndpointPatch, 0),
 		}
 	}
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -118,16 +111,10 @@ func (c *IpvsController) generatePatchGroups() []PatchGroup {
 
 		// check if patch group exists for endpoint's service
 		if group, ok := patchGroupMap[svcKey]; ok {
-			// isNew flag was added at the time of callback; refer c.Callback
-			if endpointInfo.isNew {
-				// append endpoint entry to patch group endpoints with create operation
-				group.eps = append(patchGroupMap[svcKey].eps,
-					EndpointPatch{endpointInfo: &endpointInfo, servicePortInfo: patchGroupMap[svcKey].svc.servicePortInfo, op: Create})
-			} else {
-				// append endpoint entry to patch group endpoints with update operation
-				group.eps = append(patchGroupMap[svcKey].eps,
-					EndpointPatch{endpointInfo: &endpointInfo, servicePortInfo: patchGroupMap[svcKey].svc.servicePortInfo, op: Update})
-			}
+			// append endpoint entry to patch group endpoints with create operation
+			group.eps = append(patchGroupMap[svcKey].eps,
+				EndpointPatch{endpointInfo: &endpointInfo, servicePortInfo: patchGroupMap[svcKey].svc.servicePortInfo, op: Create})
+
 			patchGroupMap[svcKey] = group
 
 		} else {
@@ -136,22 +123,12 @@ func (c *IpvsController) generatePatchGroups() []PatchGroup {
 			serviceResults := c.svcStore.GetByPrefix([]byte(endpointInfo.svcKey))[0]
 			servicePortInfo := serviceResults.Value.(ServicePortInfo)
 
-			if endpointInfo.isNew {
-				// create new patch group; add service with no-op operation; initialise endpoints patch with
-				// endpoint entry and create operation
-				patchGroupMap[endpointInfo.svcKey] = PatchGroup{
-					svc: ServicePatch{servicePortInfo: &servicePortInfo, op: NoOp},
-					eps: []EndpointPatch{{endpointInfo: &endpointInfo, servicePortInfo: &servicePortInfo, op: Create}},
-				}
-			} else {
-				// create new patch group; add service with no-op operation; initialise endpoints patch with
-				// endpoint entry and update operation
-				patchGroupMap[endpointInfo.svcKey] = PatchGroup{
-					svc: ServicePatch{servicePortInfo: &servicePortInfo, op: NoOp},
-					eps: []EndpointPatch{{endpointInfo: &endpointInfo, servicePortInfo: &servicePortInfo, op: Update}},
-				}
+			// create new patch group; add service with no-op operation; initialise endpoints patch with
+			// endpoint entry and create operation
+			patchGroupMap[endpointInfo.svcKey] = PatchGroup{
+				svc: ServicePatch{servicePortInfo: &servicePortInfo, op: NoOp},
+				eps: []EndpointPatch{{endpointInfo: &endpointInfo, servicePortInfo: &servicePortInfo, op: Create}},
 			}
-
 		}
 	}
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

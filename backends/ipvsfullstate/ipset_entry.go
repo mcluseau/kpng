@@ -8,12 +8,20 @@ import (
 // functions in this file creates entries for IPSet which can be directly passed to proxier which adds/deletes them in actual ipsets
 // these functions will be called by the objects which implement Handler interface only
 
-func getIPSetEntryForClusterIP(srcAddr string, servicePortInfo *ServicePortInfo) *ipsetutil.Entry {
-	return getIPSetEntryForIP(srcAddr, servicePortInfo, servicePortInfo.GetClusterIP())
+func getIPSetEntriesForClusterIP(srcAddr string, servicePortInfo *ServicePortInfo) []*ipsetutil.Entry {
+	entries := make([]*ipsetutil.Entry, 0)
+	for _, ip := range servicePortInfo.GetClusterIPs() {
+		entries = append(entries, getIPSetEntryForIP(srcAddr, servicePortInfo, ip))
+	}
+	return entries
 }
 
-func getIPSetEntryForExternalIP(srcAddr string, servicePortInfo *ServicePortInfo) *ipsetutil.Entry {
-	return getIPSetEntryForIP(srcAddr, servicePortInfo, servicePortInfo.GetExternalIP())
+func getIPSetEntriesForExternalIPs(srcAddr string, servicePortInfo *ServicePortInfo) []*ipsetutil.Entry {
+	entries := make([]*ipsetutil.Entry, 0)
+	for _, ip := range servicePortInfo.GetExternalIPs() {
+		entries = append(entries, getIPSetEntryForIP(srcAddr, servicePortInfo, ip))
+	}
+	return entries
 }
 
 func getIPSetEntryForIP(srcAddr string, servicePortInfo *ServicePortInfo, ip string) *ipsetutil.Entry {

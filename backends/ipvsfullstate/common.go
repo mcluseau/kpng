@@ -3,6 +3,7 @@ package ipvsfullsate
 import (
 	"fmt"
 	"github.com/cespare/xxhash"
+	IPVS "github.com/google/seesaw/ipvs"
 
 	v1 "k8s.io/api/core/v1"
 	netutils "k8s.io/utils/net"
@@ -13,9 +14,9 @@ import (
 
 const (
 	// FlagPersistent specify IPVS service session affinity
-	FlagPersistent = 0x1
+	FlagPersistent = IPVS.SFPersistent
 	// FlagHashed specify IPVS service hash flag
-	FlagHashed = 0x2
+	FlagHashed = IPVS.SFHashed
 )
 
 const Delimiter = "||"
@@ -75,53 +76,50 @@ func getIPFamily(ipAddr string) v1.IPFamily {
 	return ipAddrFamily
 }
 
-// getClusterIPByFamily returns a service clusterIP by family
-func getClusterIPByFamily(ipFamily v1.IPFamily, service *localv1.Service) string {
+// getClusterIPsByFamily returns a service clusterIP by family
+func getClusterIPsByFamily(ipFamily v1.IPFamily, service *localv1.Service) []string {
 	if ipFamily == v1.IPv4Protocol {
-		if len(service.IPs.ClusterIPs.V4) > 0 {
-			return service.IPs.ClusterIPs.V4[0]
-		}
+		return service.IPs.ClusterIPs.V4
 	}
 	if ipFamily == v1.IPv6Protocol {
-		if len(service.IPs.ClusterIPs.V6) > 0 {
-			return service.IPs.ClusterIPs.V6[0]
-		}
+		return service.IPs.ClusterIPs.V6
 	}
-	return ""
+	return make([]string, 0)
 }
 
-// getLoadBalancerIPByFamily returns a service clusterIP by family
-func getLoadBalancerIPByFamily(ipFamily v1.IPFamily, service *localv1.Service) string {
+// getLoadBalancerIPsByFamily returns a service clusterIP by family
+func getLoadBalancerIPsByFamily(ipFamily v1.IPFamily, service *localv1.Service) []string {
 	if service.IPs.LoadBalancerIPs != nil {
 		if ipFamily == v1.IPv4Protocol {
-			if len(service.IPs.LoadBalancerIPs.V4) > 0 {
-				return service.IPs.LoadBalancerIPs.V4[0]
-			}
+			return service.IPs.LoadBalancerIPs.V4
 		}
 		if ipFamily == v1.IPv6Protocol {
-			if len(service.IPs.LoadBalancerIPs.V6) > 0 {
-				return service.IPs.LoadBalancerIPs.V6[0]
-			}
+			return service.IPs.LoadBalancerIPs.V6
 		}
 	}
-	return ""
+	return make([]string, 0)
 }
 
-// getExternalIPByFamily returns a service clusterIP by family
-func getExternalIPByFamily(ipFamily v1.IPFamily, service *localv1.Service) string {
+// getExternalIPsByFamily returns a service clusterIP by family
+func getExternalIPsByFamily(ipFamily v1.IPFamily, service *localv1.Service) []string {
 	if service.IPs.ExternalIPs != nil {
 		if ipFamily == v1.IPv4Protocol {
-			if len(service.IPs.ExternalIPs.V4) > 0 {
-				return service.IPs.ExternalIPs.V4[0]
-			}
+			return service.IPs.ExternalIPs.V4
 		}
 		if ipFamily == v1.IPv6Protocol {
-			if len(service.IPs.ExternalIPs.V6) > 0 {
-				return service.IPs.ExternalIPs.V6[0]
-			}
+			return service.IPs.ExternalIPs.V6
 		}
 	}
-	return ""
+	return make([]string, 0)
+}
+
+func getSessionAffinity(affinity interface{}) SessionAffinity {
+	var sessionAffinity SessionAffinity
+	switch affinity.(type) {
+	case *localv1.Service_ClientIP:
+		sessionAffinity.ClientIP = affinity.(*localv1.Service_ClientIP)
+	}
+	return sessionAffinity
 }
 
 // getIPFilterTargetIpsAndSourceRanges returns a service clusterIP by family
