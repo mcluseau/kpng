@@ -1,11 +1,11 @@
 /*
-Copyright 2021 The Kubernetes Authors.
+Copyright 2023 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,17 +32,9 @@ const (
 	Delete
 )
 
-// Handler contains the networking logic, calls proxier to implement the changes in network layer
+// Handler interface contains the networking logic, calls proxier to implement the changes in network layer
 type Handler interface {
-	createService(*ServicePortInfo)
-	createEndpoint(*EndpointInfo, *ServicePortInfo)
-
-	updateService(*ServicePortInfo)
-	updateEndpoint(*EndpointInfo, *ServicePortInfo)
-
-	deleteService(*ServicePortInfo)
-	deleteEndpoint(*EndpointInfo, *ServicePortInfo)
-
+	// warning - these functions have side effects on linux kernel
 	getServiceHandlers() map[Operation]func(*ServicePortInfo)
 	getEndpointHandlers() map[Operation]func(*EndpointInfo, *ServicePortInfo)
 }
@@ -60,13 +52,14 @@ func (st ServiceType) String() string {
 	return string(st)
 }
 
-// TODO - move these to BindFlags
 const (
 	IPVSSchedulingMethod = "rr"
 	IPVSWeight           = 1
 )
 
-// ResourceInfo interface for ServicePortInfo and EndpointInfo
+// ResourceInfo interface implemented by ServicePortInfo and EndpointInfo
+// ToBytes() is used for hashing, we can not directly use json encoder since the fields of
+// ServicePortInfo and EndpointInfo will be private
 type ResourceInfo interface {
 	ToBytes() []byte
 }
@@ -84,7 +77,7 @@ type EndpointInfo struct {
 	portMap map[string]uint16
 }
 
-// ServicePortInfo contains base information of a service in a structure that can be directly consumed by the proxier
+// ServicePortInfo contains base information of a service and a port in a structure that can be directly consumed by the proxier
 type ServicePortInfo struct {
 	name                  string
 	namespace             string

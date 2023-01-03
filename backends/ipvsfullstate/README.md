@@ -1,7 +1,6 @@
 # IPVS Fullstate Implementation
 
-This implementation roughly follows [bridge design pattern](https://en.wikipedia.org/wiki/Bridge_pattern).  **
-IPVSController** acts as an abstraction and **Handler** acts as implementer.  
+This implementation roughly follows [bridge design pattern](https://en.wikipedia.org/wiki/Bridge_pattern).  **IPVSController** acts as an abstraction and **Handler** acts as implementer.  
 This implementation can be broken down into three major steps.
 
 ## 1. Registration
@@ -27,6 +26,7 @@ This implementation can be broken down into three major steps.
       
       // service store for storing ServicePortInfo object to diffstore
       svcStore *lightdiffstore.DiffStore
+      
       // endpoint store for storing EndpointInfo object to diffstore
       epStore *lightdiffstore.DiffStore
   
@@ -34,7 +34,10 @@ This implementation can be broken down into three major steps.
       ipset    util.Interface
       exec     exec.Interface
       proxier  *proxier
-    
+  
+      // Handlers hold the actual networking logic and interactions with kernel modules 
+
+      //we need handler for all types of services; see Handler interface for reference
       handlers map[ServiceType]Handler
   }
   ```
@@ -52,18 +55,11 @@ This implementation can be broken down into three major steps.
 
 - **types.go**
 
-  ```ServicePortInfo``` Contains base information of a service in a structure that can be directly consumed by the
+  ```ServicePortInfo``` Contains base information of a service and a port in a structure that can be directly consumed by the
   proxier
 
   ```EndpointInfo``` Contains base information of an endpoint in a structure that can be directly consumed by the
   proxier
-
-  ```ResourceInfo``` Is used by generic functions
-  ```go
-  type ResourceInfo interface {
-      ServicePortInfo | EndpointInfo
-  }
-  ```
 
 - **patch.go**
 
@@ -117,21 +113,21 @@ This implementation can be broken down into three major steps.
         }
   }
   ```
-    - PatchGroup
+    - ServiceEndpointsPatch
   ```go
-  type PatchGroup struct {
+  type ServiceEndpointsPatch struct {
         svc ServicePatch
         eps EndpointPatches
   }
   ```
 
-PatchGroups basically couples **all mutually dependent patches together**. Thus all the PatchGroups are mutually
-exclusivce and can be applied in parallel in future.
+```ServiceEndpointsPatch```  couples **all mutually dependent operations together**. Thus, all the ServiceEndpointsPatch(s) are mutually exclusive and can be applied in parallel in the future.
+It is a representation of the delta in a fullstate.ServiceEndpoints state transition
+ServiceEndpointsPatch = fullstate.ServiceEndpoints(after callback) - fullstate.ServiceEndpoints(before callback)
 
 - **ipvs.go**
 
-  ```generatePatchGroups()``` returns the list of PatchGroups required to transition ```client.ServiceEndpoints``` from
-  state A to state B.
+  ```generatePatches()``` returns the list of ServiceEndpointsPatch required to complete the transition ```client.ServiceEndpoints``` from state A to state B.
 
 ## 3. Implementation, Execute diffs [How to do?]
 
@@ -141,15 +137,6 @@ exclusivce and can be applied in parallel in future.
 
 ```go
 type Handler interface {
-	createService(*ServicePortInfo)
-	createEndpoint(*EndpointInfo, *ServicePortInfo)
-
-	updateService(*ServicePortInfo)
-	updateEndpoint(*EndpointInfo, *ServicePortInfo)
-
-	deleteService(*ServicePortInfo)
-	deleteEndpoint(*EndpointInfo, *ServicePortInfo)
-
 	getServiceHandlers() map[Operation]func(*ServicePortInfo)
 	getEndpointHandlers() map[Operation]func(*EndpointInfo, *ServicePortInfo)
 }

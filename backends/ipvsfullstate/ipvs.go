@@ -1,3 +1,19 @@
+/*
+Copyright 2023 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package ipvsfullsate
 
 import (
@@ -20,10 +36,10 @@ type IpvsController struct {
 
 	ipFamily v1.IPFamily
 
-	// service store for storing ServicePortInfo object in diffstore
+	// service store for storing ServicePortInfo objects in diffstore
 	svcStore *lightdiffstore.DiffStore
 
-	// endpoint store for storing EndpointInfo  object in diffstore
+	// endpoint store for storing EndpointInfo  objects in diffstore
 	epStore *lightdiffstore.DiffStore
 
 	iptables util.IPTableInterface
@@ -31,7 +47,8 @@ type IpvsController struct {
 	exec     exec.Interface
 	proxier  *proxier
 
-	// Create + Update + Delete handler for respective ServiceType
+	// Handlers hold the actual networking logic and interactions with kernel modules
+	// we need handler for all types of services; see Handler interface for reference
 	handlers map[ServiceType]Handler
 }
 
@@ -45,6 +62,7 @@ func NewIPVSController(dummy netlink.Link) IpvsController {
 	masqueradeValue := 1 << uint(masqueradeBit)
 	masqueradeMark := fmt.Sprintf("%#08x", masqueradeValue)
 
+	// initialize Proxier which interacts with the kernel
 	ipv4Proxier := NewProxier(
 		v1.IPv4Protocol,
 		dummy,
@@ -57,15 +75,17 @@ func NewIPVSController(dummy netlink.Link) IpvsController {
 		IPVSWeight,
 	)
 
+	// initialize IPSets
 	ipv4Proxier.initializeIPSets()
+
+	// create IPTable rules for IPSets
 	ipv4Proxier.setIPTableRulesForIPVS()
 
-	// service handlers
+	// populate service handlers
 	handlers := make(map[ServiceType]Handler)
 	handlers[ClusterIPService] = newClusterIPHandler(ipv4Proxier)
 	handlers[NodePortService] = newNodePortHandler(ipv4Proxier)
 	// TODO - add handler for LoadBalancer serviceType
-	// handlers[LoadBalancerService] = newLoadBalancerHandler(ipv4Proxier)
 
 	return IpvsController{
 		svcStore: lightdiffstore.New(),
@@ -101,7 +121,9 @@ func (c *IpvsController) Callback(ch <-chan *client.ServiceEndpoints) {
 			// ServicePortInfo, can be directly consumed by proxier
 			servicePortInfo := NewServicePortInfo(service, port, IPVSSchedulingMethod, IPVSWeight)
 
-			// generate service; key format: [namespace + name + port + protocol]
+			// generate service key -> [hash of everything in ServicePortInfo]
+			// using this key, we can trick the diffstore to convert an Update operation into Delete + Create
+			// any change in service will create new, key thus for update we delete the old one and create new one
 			svcKey := getSvcKey(servicePortInfo)
 
 			// add ServicePortInfo to service diffstore
@@ -125,31 +147,40 @@ func (c *IpvsController) Callback(ch <-chan *client.ServiceEndpoints) {
 	}
 
 	// prepare patch for network layer
-	patchGroups := c.generatePatchGroups()
+	// here a patch will  represent delta in a fullstate.ServiceEndpoints after processing the callback
+	patches := c.generatePatches()
 
-	// apply patches
-	c.apply(patchGroups)
+	// apply all the patches to manipulate the network layer for the required changes
+	c.apply(patches)
 
 	et := time.Now()
 	klog.V(3).Infof("took %.2f ms to sync", 1000*et.Sub(st).Seconds())
 }
 
-func (c *IpvsController) apply(groups []PatchGroup) {
-	// TODO get rid of this
-	// delete ops should precede create ops
-	sort.Slice(groups, func(i, j int) bool {
-		return groups[i].svc.op > groups[j].svc.op
+func (c *IpvsController) apply(patches []ServiceEndpointsPatch) {
+
+	// When applying patches we need to make sure all Delete operations occurs before Create operations
+	// This handles corner cases of service update. If we execute Create before Delete, Create will be a NoOp since objects will
+	// already exist in the network layer and Delete will just remove those objects
+	// sorting patches on integer value of Operation
+	sort.Slice(patches, func(i, j int) bool {
+		return patches[i].svc.op > patches[j].svc.op
 	})
 
-	for _, group := range groups {
-		klog.V(3).Infof("patch group: service=%s; %d; endpoints=%d", group.svc.servicePortInfo.NamespacedName(), group.svc.op, len(group.eps))
+	for _, patch := range patches {
+		klog.V(3).Infof("patch group: service=%s; %d; endpoints=%d",
+			patch.svc.servicePortInfo.NamespacedName(), patch.svc.op, len(patch.eps))
+
 		// get handler for the serviceType
-		handler, ok := c.handlers[group.svc.servicePortInfo.serviceType]
+		serviceType := patch.svc.servicePortInfo.serviceType
+
+		// handler contains set of functions which will interact with kernel
+		handler, ok := c.handlers[serviceType]
 		if ok {
 			// apply the patch
-			group.apply(handler.getServiceHandlers(), handler.getEndpointHandlers())
+			patch.apply(handler.getServiceHandlers(), handler.getEndpointHandlers())
 		} else {
-			klog.V(3).Infof("IPVS fullstate not yet implemented for %v", group.svc.servicePortInfo.serviceType)
+			klog.V(3).Infof("IPVS fullstate not yet implemented for %v", serviceType)
 		}
 	}
 }

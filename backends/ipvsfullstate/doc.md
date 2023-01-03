@@ -3,13 +3,13 @@
 ## Kernel Parameters
 https://www.kernel.org/doc/html/v5.14/networking/ipvs-sysctl.html
 
-| Parameter                             |                                                                              Description                                                                              |    Value |
-|---------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------:|---------:|
-| net.bridge.bridge-nf-call-iptables    |                                                   Determine whether packets crossing a bridge are sent to iptables                                                    |        1 |
-| net.ipv4.vs.conntrack                 |                                 Determines whether to maintain connectiion tracking entries for connections handled by load balancer                                  |        1 |
-| net.ipv4.vs.expire_nodest_conn        |            Determine whether load balancer will close/expire the connection immediately when a packet arrives and its destination server is not available             |        1 |
-| net.ipv4.vs.expire_quiescent_template |                                 Determine whether load balancer will expire persistent templates when destination server is quiescent                                 |        1 |
-| net.ipv4.ip_forward                   |                                               Determine whether packets meant for other destinations will be forwarded                                                |        1 |
+| Parameter                             |                                                                  Description                                                                   | Value |
+|---------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------:|------:|
+| net.bridge.bridge-nf-call-iptables    |                                        Determine whether packets crossing a bridge are sent to iptables                                        |     1 |
+| net.ipv4.vs.conntrack                 |                      Determines whether to maintain connectiion tracking entries for connections handled by load balancer                      |     1 |
+| net.ipv4.vs.expire_nodest_conn        | Determine whether load balancer will close/expire the connection immediately when a packet arrives and its destination server is not available |     1 |
+| net.ipv4.vs.expire_quiescent_template |                     Determine whether load balancer will expire persistent templates when destination server is quiescent                      |     1 |
+| net.ipv4.vs.conn_reuses_mode          |                             Determine whether to enable connection meant for other destinations will be forwarded                              |     0 |
 
 ## Kernel Version > 4.1
 

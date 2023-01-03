@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Kubernetes Authors.
+Copyright 2023 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ type backend struct {
 }
 
 func init() {
+	// registering the backend with the client
 	hostname, err := os.Hostname()
 	if err != nil {
 		klog.Fatal("Unable to retrieve os hostname")
@@ -62,11 +63,14 @@ func (b *backend) Sync() { /* no-op */ }
 
 func (b *backend) Sink() localsink.Sink {
 	sink := fullstate.New(&b.cfg)
+
+	// client will invoke Setup()
 	sink.SetupFunc = b.Setup
+
+	// client will invoke Callback() with fullstate
 	sink.Callback = fullstatepipe.New(fullstatepipe.ParallelSendSequenceClose,
 		controller.Callback,
 	).Callback
 
-	b.Setup()
 	return sink
 }
