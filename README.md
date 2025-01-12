@@ -1,3 +1,5 @@
+Deprecated in favor of https://github.com/mcluseau/knls.
+
 # Kubernetes Proxy NG
 
 The Kubernetes Proxy NG a new design of kube-proxy aimed at
